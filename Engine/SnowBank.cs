@@ -33,7 +33,7 @@ namespace WinterTray.Engine
     public sealed class SnowBank
     {
         public const double Step = 4.0;
-        public const double EdgeMargin = 8.0;    // 8 px védőtávolság a Windows 11 lekerekített sarkaihoz (tiszta sarkok!)
+        public const double EdgeMargin = 14.0;   // 14 px védőtávolság a Windows 11 lekerekített sarkaihoz (tökéletesen tiszta sarkok!)
         private const float Slope = 2.6f;
 
         public IntPtr HWnd;
@@ -529,74 +529,34 @@ namespace WinterTray.Engine
             int seed = unchecked((int)HWnd.ToInt64() ^ 0x4B3A1C);
             var rnd = new Random(seed);
 
-            double activeLeft = 16.0;
-            double activeRight = Width - 16.0;
+            double activeLeft = 20.0;
+            double activeRight = Width - 20.0;
             double span = activeRight - activeLeft;
-            if (span < 30.0) return;
+            if (span < 40.0) return;
 
-            double baseSpacing = 14.0 / Math.Clamp(density, 0.4, 2.5);
+            double baseSpacing = 16.0 / Math.Clamp(density, 0.4, 2.5);
 
-            // A) FELSŐ JÉGCSAPOK (belelógnak a fejlécbe a hóréteg alól)
-            double curX = activeLeft + 3.0 + rnd.NextDouble() * 6.0;
-            while (curX < activeRight - 6.0)
-            {
-                if (rnd.NextDouble() < 0.32)
-                {
-                    curX += baseSpacing * (1.2 + rnd.NextDouble() * 1.5);
-                    continue;
-                }
-
-                int group = rnd.Next(1, 3);
-                for (int g = 0; g < group && curX < activeRight - 5.0; g++)
-                {
-                    double w = 2.8 + rnd.NextDouble() * 2.8;
-                    double len = 4.0 + rnd.NextDouble() * 8.5; // 4 - 12.5 px-t lóg be a címsorba
-                    if (rnd.NextDouble() < 0.20) len += 4.0;   // néha 16.5 px
-
-                    int maxHits = len > 11.0 ? 2 : 1;
-
-                    Icicles.Add(new IcicleData
-                    {
-                        Id = ++_icicleCounter,
-                        IsTop = true,
-                        RelX = curX,
-                        BaseY = 1.5,
-                        Width = w,
-                        TargetLength = len,
-                        CurrentLength = 0.5,
-                        Slant = (rnd.NextDouble() - 0.5) * 0.8,
-                        MaxHits = maxHits,
-                        HitsRemaining = maxHits,
-                        Shattered = false
-                    });
-
-                    curX += w + 2.0 + rnd.NextDouble() * 4.0;
-                }
-
-                curX += baseSpacing * (0.8 + rnd.NextDouble() * 1.0);
-            }
-
-            // B) ALSÓ JÉGCSAPOK (lelógnak az ablak aljáról a háttérbe)
+            // ALSÓ JÉGCSAPOK (lelógnak az ablak aljáról a háttérbe)
             // Csak ha az ablak nem ül a tálcán
             if (Bottom < screenHeight - 42)
             {
-                curX = activeLeft + 4.0 + rnd.NextDouble() * 8.0;
-                while (curX < activeRight - 6.0)
+                double curX = activeLeft + 6.0 + rnd.NextDouble() * 8.0;
+                while (curX < activeRight - 10.0)
                 {
-                    if (rnd.NextDouble() < 0.24)
+                    if (rnd.NextDouble() < 0.28)
                     {
                         curX += baseSpacing * (1.2 + rnd.NextDouble() * 1.6);
                         continue;
                     }
 
                     int group = rnd.Next(1, 4);
-                    for (int g = 0; g < group && curX < activeRight - 5.0; g++)
+                    for (int g = 0; g < group && curX < activeRight - 8.0; g++)
                     {
-                        double w = 3.4 + rnd.NextDouble() * 3.2; // 3.4 - 6.6 px széles tő
+                        double w = 3.2 + rnd.NextDouble() * 3.4; // 3.2 - 6.6 px széles tő
                         double lenRoll = rnd.NextDouble();
-                        double len = lenRoll < 0.45 ? (5.0 + rnd.NextDouble() * 6.0)
-                                   : (lenRoll < 0.82 ? (10.0 + rnd.NextDouble() * 8.0)
-                                   : (18.0 + rnd.NextDouble() * 9.0));
+                        double len = lenRoll < 0.45 ? (6.0 + rnd.NextDouble() * 7.0)
+                                   : (lenRoll < 0.82 ? (11.0 + rnd.NextDouble() * 9.0)
+                                   : (20.0 + rnd.NextDouble() * 10.0));
 
                         int maxHits = len > 18.0 ? 3 : (len > 10.0 ? 2 : 1);
 
@@ -645,8 +605,8 @@ namespace WinterTray.Engine
                 _basePts = new Point[n];
             }
 
-            // 1. Felső hóréteg: az ablak vízszintes peremén fut végig, a sarkok előtt (6px-ben) finoman lefut nullára
-            const double TaperDist = 6.0;
+            // 1. Felső hóréteg: az ablak vízszintes peremén fut végig, a sarkok előtt (14px-ben) finoman lefut nullára
+            const double TaperDist = 14.0;
             for (int i = 0; i < n; i++)
             {
                 double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
@@ -676,7 +636,7 @@ namespace WinterTray.Engine
                 }
             }
 
-            // A sarkok garantált tisztasága: a széleken szigorúan 0-ra kényszerítjük
+            // A Windows 11 lekerekített sarkainak garantált tisztasága: a széleken szigorúan 0-ra kényszerítjük
             for (int i = 0; i < n; i++)
             {
                 double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
@@ -693,15 +653,16 @@ namespace WinterTray.Engine
             _tmp[n - 1] = 0f;
 
             // 3. Pontok generálása:
-            // A hóréteg enyhén (2.5 px) ráhajlik az ablak felső peremére (megszünteti a fekete csíkot/hézagot!)
-            // A sarkoknál a lekerekítés védőtávolságában (TaperDist) finoman visszafut 0-ra, így a kerek sarkok hibátlanok maradnak.
+            // A hóréteg az ablak felső peremén ül (Y = 0.5), elfedve a felső szegélycsíkot anélkül,
+            // hogy belelógna a fejlécbe vagy megcsonkítaná a Windows 11 kerek sarkait.
+            // A sarkoknál (TaperDist távolságon belül) az alapvonal finoman visszasimul 0-ra.
             for (int i = 0; i < n; i++)
             {
                 double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
                 double dLeft = x - activeLeft;
                 double dRight = (activeLeft + activeWidth) - x;
                 double dCorner = Math.Min(dLeft, dRight);
-                double yBase = 2.5;
+                double yBase = 0.5;
                 if (dCorner < TaperDist)
                 {
                     double u = Math.Clamp(dCorner / TaperDist, 0.0, 1.0);

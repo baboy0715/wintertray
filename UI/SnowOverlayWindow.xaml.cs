@@ -142,6 +142,14 @@ namespace WinterTray.UI
                 ZOrder.Enforce(_hwnd);
             }
 
+            // Képmetsző / Snipping Tool (Win+Shift+S) vagy képernyőkép-készítő közben azonnal elrejtjük az overlayt,
+            // így a képernyőmentés tiszta marad, semmilyen hóréteg nem takarja ki a képmetsző felületét!
+            if (Win32.IsScreenCaptureActive())
+            {
+                if (Visibility != Visibility.Hidden) Visibility = Visibility.Hidden;
+                return;
+            }
+
             bool covered = _allCovered && _settings.PauseWhenCovered;
             if (_pollAccumulator >= (covered ? 0.12 : 0.033))
             {
@@ -157,8 +165,18 @@ namespace WinterTray.UI
                 covered = _allCovered && _settings.PauseWhenCovered;
             }
 
-            // ha minden monitort egy ablak teljesen takar, a hó úgysem látszana: nem számolunk, nem rajzolunk
-            if (covered) return;
+            // Ha minden monitort egy alkalmazásablak teljesen takar, az overlay-t azonnal elrejtjük (Visibility.Hidden).
+            // Így garantáltan semmilyen hópehely nem fagyhat be a maximalizált alkalmazások (pl. Antigravity) tetejére,
+            // és a GPU / CPU használat is teljesen leáll!
+            if (covered)
+            {
+                if (Visibility != Visibility.Hidden) Visibility = Visibility.Hidden;
+                return;
+            }
+            else
+            {
+                if (Visibility != Visibility.Visible) Visibility = Visibility.Visible;
+            }
 
             double simDt = Math.Min(dt, 0.05);
 
@@ -224,8 +242,8 @@ namespace WinterTray.UI
                 foreach (var w in windows)
                 {
                     if (w.IsTaskbar) continue;
-                    // Csak valódi, címmel rendelkező alkalmazásablakok számítanak képernyő-lefedésnek!
-                    if (string.IsNullOrWhiteSpace(w.Title)) continue;
+                    // Csak valódi alkalmazásablakok (címmel vagy ismert böngésző/Electron felülettel) számítanak képernyő-lefedésnek!
+                    if (string.IsNullOrWhiteSpace(w.Title) && !w.ClassName.StartsWith("Chrome_WidgetWin") && w.ClassName != "ApplicationFrameWindow") continue;
                     var r = w.PxRect;
                     if (r.Left <= wa.Left + 8 && r.Top <= wa.Top + 8 &&
                         r.Right >= wa.Right - 8 && r.Bottom >= wa.Bottom - 8)

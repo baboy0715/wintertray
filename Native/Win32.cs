@@ -121,6 +121,30 @@ namespace WinterTray.Native
             return GetWindowRect(hWnd, out rect);
         }
 
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        public static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
+
+        /// <summary>
+        /// Ellenőrzi, hogy a Windows Képmetsző / Snipping Tool (Win+Shift+S) vagy képernyőkép-készítő aktív-e.
+        /// Ilyenkor az overlay azonnal elrejtőzik, így semmilyen hó nem takarja ki a képernyőfotót!
+        /// </summary>
+        public static bool IsScreenCaptureActive()
+        {
+            try
+            {
+                IntPtr h1 = FindWindow("ScreenClippingHost", null);
+                if (h1 != IntPtr.Zero && IsWindowVisible(h1)) return true;
+
+                IntPtr h2 = FindWindow("Microsoft.ScreenSketch", null);
+                if (h2 != IntPtr.Zero && IsWindowVisible(h2)) return true;
+
+                IntPtr h3 = FindWindow("Windows.Internal.Shell.ScreenClipping", null);
+                if (h3 != IntPtr.Zero && IsWindowVisible(h3)) return true;
+            }
+            catch { }
+            return false;
+        }
+
         public static bool IsWindowCloaked(IntPtr hWnd)
         {
             int hr = DwmGetWindowAttribute(hWnd, DWMWA_CLOAKED, out int isCloaked, sizeof(int));

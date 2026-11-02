@@ -449,7 +449,7 @@ namespace WinterTray.Engine
             {
                 var w = _windows[i];
                 if (w.IsTaskbar) continue;
-                if (string.IsNullOrWhiteSpace(w.Title)) continue;
+                if (string.IsNullOrWhiteSpace(w.Title) && !w.ClassName.StartsWith("Chrome_WidgetWin") && w.ClassName != "ApplicationFrameWindow") continue;
                 if (w.Rect.Contains(x, y)) return true;
             }
             return false;
@@ -461,7 +461,8 @@ namespace WinterTray.Engine
             {
                 var w = _windows[i];
                 if (w.HWnd == hwnd) break; // Z-sorrendben a saját ablakunkig nézzük a feljebb lévőket
-                if (w.IsTaskbar || string.IsNullOrWhiteSpace(w.Title)) continue;
+                if (w.IsTaskbar) continue;
+                if (string.IsNullOrWhiteSpace(w.Title) && !w.ClassName.StartsWith("Chrome_WidgetWin") && w.ClassName != "ApplicationFrameWindow") continue;
                 if (w.Rect.Contains(x, y)) return true;
             }
             return false;
