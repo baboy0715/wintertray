@@ -33,7 +33,7 @@ namespace WinterTray.Engine
     public sealed class SnowBank
     {
         public const double Step = 4.0;
-        public const double EdgeMargin = 0.0;    // A hó a teljes ablak tetején végigfut, a szélekig normálisan kimegy!
+        public const double EdgeMargin = 2.5;    // 2.5 px: pontosan a Windows 11 kerek sarkának ívére illeszkedik, semmi sem lóg ki a levegőbe!
         private const float Slope = 2.6f;
 
         public IntPtr HWnd;
@@ -596,20 +596,22 @@ namespace WinterTray.Engine
                 return;
             }
 
+            double activeLeft = EdgeMargin;
+            double activeWidth = Math.Max(Step * 2, Width - EdgeMargin * 2.0);
+
             if (_topPts.Length < n)
             {
                 _topPts = new Point[n];
                 _basePts = new Point[n];
             }
 
-            // 1. Felső hóréteg: a hó a teljes szélességen végigfut X = 0-tól X = Width-ig (a szélekig normálisan kimegy!)
-            // A legszélső 4 pixelben finoman rásimul a Windows 11 kerek sarkára.
-            const double TaperDist = 4.0;
+            // 1. Felső hóréteg: a sarkoknál (6px-ben) finoman és természetesen lefut 0-ra
+            const double TaperDist = 6.0;
             for (int i = 0; i < n; i++)
             {
-                double x = Math.Min(i * Step, Width);
-                double dLeft = x;
-                double dRight = Width - x;
+                double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
+                double dLeft = x - activeLeft;
+                double dRight = (activeLeft + activeWidth) - x;
                 double d = Math.Min(dLeft, dRight);
                 double taper = 1.0;
                 if (d < TaperDist)
@@ -634,12 +636,12 @@ namespace WinterTray.Engine
                 }
             }
 
-            // A Windows 11 kerek sarkaihoz finom lefutás a legszélső 4 px-en
+            // A Windows 11 lekerekített sarkainál szigorúan 0-ra kényszerítjük a szélső pontokat
             for (int i = 0; i < n; i++)
             {
-                double x = Math.Min(i * Step, Width);
-                double dLeft = x;
-                double dRight = Width - x;
+                double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
+                double dLeft = x - activeLeft;
+                double dRight = (activeLeft + activeWidth) - x;
                 double d = Math.Min(dLeft, dRight);
                 if (d < TaperDist)
                 {
@@ -651,12 +653,13 @@ namespace WinterTray.Engine
             _tmp[n - 1] = 0f;
 
             // 3. Pontok generálása:
-            // A hóréteg az ablak felső peremén Y = 3.0-ig fekszik rá, így teljesen eltakarja a felső sötét szegélyvonalat
-            // (a fekete csík 100%-ban megszűnik, tökéletesen tiszta hó fedi a fejlécet!)
+            // Y = 3.0 takarja el a sötét ablakkeretet (a fekete csík 100%-ban megszűnt!).
+            // X = activeLeft (2.5px) és X = Width - 2.5px pontosan a Windows 11 lekerekített sarkára illeszkedik,
+            // így egyetlen pixel sem lóg ki a levegőbe a sarkoknál, tökéletesen kerek marad az ablak!
             const double YOverlap = 3.0;
             for (int i = 0; i < n; i++)
             {
-                double x = Math.Min(i * Step, Width);
+                double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
                 _basePts[i] = new Point(x, YOverlap);
                 _topPts[i] = new Point(x, YOverlap - _tmp[i]);
             }

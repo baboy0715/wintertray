@@ -122,6 +122,19 @@ namespace WinterTray.Native
             return GetWindowRect(hWnd, out rect);
         }
 
+        public const uint WDA_NONE = 0x00000000;
+        public const uint WDA_MONITOR = 0x00000001;
+        public const uint WDA_EXCLUDEFROMCAPTURE = 0x00000011;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         public static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
 
@@ -133,14 +146,28 @@ namespace WinterTray.Native
         {
             try
             {
-                IntPtr h1 = FindWindow("ScreenClippingHost", null);
-                if (h1 != IntPtr.Zero && IsWindowVisible(h1)) return true;
+                // 1. Windows 11 Snipping Tool (Win+Shift+S) snipping folyamata
+                if (System.Diagnostics.Process.GetProcessesByName("ScreenClippingHost").Length > 0) return true;
 
-                IntPtr h2 = FindWindow("Microsoft.ScreenSketch", null);
-                if (h2 != IntPtr.Zero && IsWindowVisible(h2)) return true;
-
-                IntPtr h3 = FindWindow("Windows.Internal.Shell.ScreenClipping", null);
-                if (h3 != IntPtr.Zero && IsWindowVisible(h3)) return true;
+                // 2. Előtérben futó képmetsző programok vizsgálata
+                IntPtr fg = GetForegroundWindow();
+                if (fg != IntPtr.Zero)
+                {
+                    GetWindowThreadProcessId(fg, out uint pid);
+                    if (pid != 0)
+                    {
+                        using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                        string name = proc.ProcessName;
+                        if (name.Equals("ScreenClippingHost", StringComparison.OrdinalIgnoreCase) ||
+                            name.Equals("SnippingTool", StringComparison.OrdinalIgnoreCase) ||
+                            name.Equals("ScreenSketch", StringComparison.OrdinalIgnoreCase) ||
+                            name.Equals("Lightshot", StringComparison.OrdinalIgnoreCase) ||
+                            name.Equals("Greenshot", StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+                    }
+                }
             }
             catch { }
             return false;

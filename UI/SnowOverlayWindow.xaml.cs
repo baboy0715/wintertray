@@ -99,6 +99,10 @@ namespace WinterTray.UI
             _tracker = new WindowTracker(_hwnd, _toDip);
             _tracker.WindowChanged += _world.OnWindowChanged;
 
+            // DWM szintű védelem képernyőkép és képernyőmegosztás ellen:
+            // A Windows DWM közvetlenül kizárja az overlayt minden képernyőmentésből (Snipping Tool, PrintScreen, stb.)
+            Win32.SetWindowDisplayAffinity(_hwnd, Win32.WDA_EXCLUDEFROMCAPTURE);
+
             ZOrder.Enforce(_hwnd);
 
             _clock.Start();
