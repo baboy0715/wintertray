@@ -181,7 +181,7 @@ namespace WinterTray.Engine
                         _banks[w.HWnd] = bank;
                         _bankList.Add(bank);
                     }
-                    bank.SetRect(w.Rect.Left, w.Rect.Top, w.Rect.Width, w.Rect.Height);
+                    bank.UpdateBounds(w.Rect.Left, w.Rect.Top, w.Rect.Width, w.Rect.Height, HandleResizeShed);
                 }
             }
 
@@ -324,8 +324,10 @@ namespace WinterTray.Engine
                 return;
             }
 
-            // A pozíció azonnal frissül: A HÓ ÉS A JÉGCSAPOK AZ ABLAKKAL EGYÜTT MOZOGNAK!
-            bank.SetRect(r.Left, r.Top, r.Width, r.Height);
+            // A pozíció és méret azonnal frissül:
+            // Ha az ablakot kicsinyítik (szélét behúzzák), a levágott peremről a hó szépen leomlik,
+            // a megmaradt felületen lévő hó pedig képernyő-helyén marad, nem torzul.
+            bank.UpdateBounds(r.Left, r.Top, r.Width, r.Height, HandleResizeShed);
 
             double safeDt = Math.Clamp(dt, 0.005, 0.1);
             double vx = (r.X - oldRect.X) / safeDt;
@@ -373,6 +375,52 @@ namespace WinterTray.Engine
                         }
                     });
                 }
+            }
+        }
+
+        private void HandleResizeShed(double x, double y, float amount, double edgeDir)
+        {
+            int budget = MaxBudget();
+            if (budget <= 0 || _particleCount >= budget) return;
+
+            // 1. Leomló hódarabok (Clump) - darabos lavina a visszahúzott peremről
+            int clumpCount = Math.Clamp((int)Math.Ceiling(amount / 3.0), 1, 3);
+            for (int k = 0; k < clumpCount && _particleCount < budget; k++)
+            {
+                double dir = edgeDir != 0.0 ? edgeDir : (Gauss() > 0 ? 1.0 : -1.0);
+                double vx = dir * (16.0 + _rnd.NextDouble() * 30.0) + Gauss() * 16.0;
+                double vy = 12.0 + _rnd.NextDouble() * 32.0;
+                double size = 2.4 + Math.Min(amount, 6.0) * 0.7 + _rnd.NextDouble() * 1.8;
+
+                SpawnParticle(new Particle
+                {
+                    Kind = ParticleKind.Clump,
+                    X = x + (_rnd.NextDouble() - 0.5) * 6,
+                    Y = y + (_rnd.NextDouble() - 0.5) * 4,
+                    Size = size,
+                    Vx = vx,
+                    Vy = vy,
+                    Rot = _rnd.NextDouble() * 6.28,
+                    RotSpeed = (_rnd.NextDouble() - 0.5) * 6,
+                    Life = 0.70 + _rnd.NextDouble() * 0.60,
+                    Variant = _rnd.Next(SnowSprites.ClumpVariants)
+                });
+            }
+
+            // 2. Finom hófúvás / porfelhő (Dust) a levágott szél mentén
+            if (_particleCount < budget)
+            {
+                double dir = edgeDir != 0.0 ? edgeDir : 0.0;
+                SpawnParticle(new Particle
+                {
+                    Kind = ParticleKind.Dust,
+                    X = x + (_rnd.NextDouble() - 0.5) * 4,
+                    Y = y - 1 - _rnd.NextDouble() * 3,
+                    Vx = dir * 14.0 + Gauss() * 22.0,
+                    Vy = -8.0 - _rnd.NextDouble() * 22.0,
+                    Size = 1.4 + _rnd.NextDouble() * 1.4,
+                    Life = 0.35 + _rnd.NextDouble() * 0.30
+                });
             }
         }
 

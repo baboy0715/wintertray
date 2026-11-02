@@ -75,28 +75,155 @@ namespace WinterTray.Engine
 
         public void SetRect(double left, double top, double width, double height)
         {
-            Left = left;
-            Top = top;
-            _transform.X = left;
-            _transform.Y = top;
+            UpdateBounds(left, top, width, height, null);
+        }
 
-            if (H.Length == 0 || Math.Abs(width - Width) > 0.5 || Math.Abs(height - Height) > 0.5)
+        /// <summary>
+        /// Ablak határainak frissítése.
+        /// - Ha az ablak csak mozog (mérete nem változott), hardveres TranslateTransform-mal frissül azonnal (0 ms lag).
+        /// - Ha az ablakot a szélénél fogva átméretezik (kisebbre húzzák), a levágott peremről a hó szépen és
+        ///   valósághűen lehullik (Clump és Dust részecskék), a megmaradt felületen lévő hó pedig nem nyomódik össze,
+        ///   hanem valós képernyő-koordinátái szerint pontosan megmarad a helyén!
+        /// </summary>
+        public void UpdateBounds(
+            double newLeft, double newTop, double newWidth, double newHeight,
+            Action<double, double, float, double>? onShedOffEdge = null)
+        {
+            if (H.Length == 0)
             {
-                Width = width;
-                Height = height;
+                Left = newLeft;
+                Top = newTop;
+                Width = newWidth;
+                Height = newHeight;
+                _transform.X = newLeft;
+                _transform.Y = newTop;
 
-                double activeWidth = Math.Max(Step * 2, width - EdgeMargin * 2.0);
+                double activeWidth = Math.Max(Step * 2, newWidth - EdgeMargin * 2.0);
                 int n = Math.Max(2, (int)Math.Ceiling(activeWidth / Step) + 1);
-                if (n != H.Length)
-                {
-                    Array.Resize(ref H, n);
-                    Array.Resize(ref T, n);
-                    _tmp = new float[n];
-                    _topPts = new Point[n];
-                    _basePts = new Point[n];
-                }
+                H = new float[n];
+                T = new float[n];
+                _tmp = new float[n];
+                _topPts = new Point[n];
+                _basePts = new Point[n];
                 _dirty = true;
+                return;
             }
+
+            bool widthChanged = Math.Abs(newWidth - Width) > 0.5;
+            bool heightChanged = Math.Abs(newHeight - Height) > 0.5;
+
+            // Csak sima ablakmozgatás (szélesség és magasság nem változott): 120 FPS DirectX TranslateTransform
+            if (!widthChanged && !heightChanged)
+            {
+                Left = newLeft;
+                Top = newTop;
+                _transform.X = newLeft;
+                _transform.Y = newTop;
+                return;
+            }
+
+            // ABLAK ÁTMÉRETEZÉSE (szél vagy sarok húzása)
+            double oldLeft = Left;
+            double oldTop = Top;
+            double oldWidth = Width;
+            double oldHeight = Height;
+            var oldH = H;
+            var oldT = T;
+            int oldN = oldH.Length;
+
+            double oldActiveLeft = oldLeft + EdgeMargin;
+            double oldActiveRight = oldLeft + oldWidth - EdgeMargin;
+
+            double newActiveLeft = newLeft + EdgeMargin;
+            double newActiveRight = newLeft + newWidth - EdgeMargin;
+            double newActiveWidth = Math.Max(Step * 2, newWidth - EdgeMargin * 2.0);
+            int newN = Math.Max(2, (int)Math.Ceiling(newActiveWidth / Step) + 1);
+
+            // 1. A visszahúzott peremről leeső hó kezelése:
+            // Amikor a felhasználó összenyomja / kisebbre méretezi az ablakot, a hó nem csak
+            // összemegy, hanem a megvont felületről szépen és fizikailag leomlik/lehullik!
+            if (onShedOffEdge != null && oldN > 0)
+            {
+                for (int i = 0; i < oldN; i++)
+                {
+                    float h = oldH[i];
+                    if (h < 0.25f) continue;
+
+                    double worldX = oldActiveLeft + i * Step;
+
+                    // Jobb szél húzása befelé (jobbról balra):
+                    if (worldX > newActiveRight)
+                    {
+                        onShedOffEdge(worldX, oldTop - h * 0.5, h, 1.0);
+                    }
+                    // Bal szél húzása befelé (balról jobbra):
+                    else if (worldX < newActiveLeft)
+                    {
+                        onShedOffEdge(worldX, oldTop - h * 0.5, h, -1.0);
+                    }
+                }
+
+                // Ha az ablak magassága csökkent (alulról húzták fel), a lelógó alsó jégcsapok letörnek
+                if (newHeight < oldHeight - 4.0 && Icicles.Count > 0)
+                {
+                    for (int i = 0; i < Icicles.Count; i++)
+                    {
+                        var ic = Icicles[i];
+                        if (!ic.IsTop && !ic.Shattered)
+                        {
+                            ic.Shattered = true;
+                            onShedOffEdge(oldLeft + ic.RelX, oldTop + oldHeight, (float)ic.Length, 0.0);
+                        }
+                    }
+                }
+            }
+
+            // 2. A megmaradt ablakfelületen lévő hó megtartása valós koordinátákban:
+            // A hó NEM torzul, nem tolódik el mesterségesen, hanem a képernyő-helyén marad.
+            var newH = new float[newN];
+            var newT = new float[newN];
+            float newPeak = 0;
+
+            for (int j = 0; j < newN; j++)
+            {
+                double worldX = newActiveLeft + j * Step;
+
+                if (worldX >= oldActiveLeft && worldX <= oldActiveRight && oldN > 1)
+                {
+                    double t = (worldX - oldActiveLeft) / Step;
+                    int i0 = (int)Math.Floor(t);
+                    int i1 = Math.Min(oldN - 1, i0 + 1);
+                    i0 = Math.Clamp(i0, 0, oldN - 1);
+                    double f = Math.Clamp(t - i0, 0.0, 1.0);
+
+                    float hInterp = (float)(oldH[i0] * (1.0 - f) + oldH[i1] * f);
+                    float tInterp = (float)(oldT[i0] * (1.0 - f) + oldT[i1] * f);
+
+                    newH[j] = hInterp;
+                    newT[j] = tInterp;
+                    if (hInterp > newPeak) newPeak = hInterp;
+                }
+                else
+                {
+                    newH[j] = 0f;
+                    newT[j] = 0f;
+                }
+            }
+
+            H = newH;
+            T = newT;
+            Peak = newPeak;
+            _tmp = new float[newN];
+            _topPts = new Point[newN];
+            _basePts = new Point[newN];
+
+            Left = newLeft;
+            Top = newTop;
+            Width = newWidth;
+            Height = newHeight;
+            _transform.X = newLeft;
+            _transform.Y = newTop;
+            _dirty = true;
         }
 
         public double HeightAt(double x)
