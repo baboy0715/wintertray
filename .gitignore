@@ -1,0 +1,13 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+WinterTray.dll
+WinterTray.exe
+WinterTray.pdb
+WinterTray.deps.json
+WinterTray.runtimeconfig.json
+

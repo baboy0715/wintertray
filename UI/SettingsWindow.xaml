@@ -1,0 +1,312 @@
+<Window x:Class="WinterTray.UI.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WinterTray - Beállítások"
+        Height="780" Width="540"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanMinimize"
+        Background="#1F1F1F"
+        Foreground="#FFFFFF"
+        FontFamily="Segoe UI Variable, Segoe UI, sans-serif">
+
+    <Window.Resources>
+        <Style x:Key="SettingCard" TargetType="Border">
+            <Setter Property="Background" Value="#292929" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,12" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="BorderBrush" Value="#383838" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#60CDFF" />
+            <Setter Property="Margin" Value="4,12,0,8" />
+        </Style>
+
+        <Style TargetType="Slider">
+            <Setter Property="Foreground" Value="#60CDFF" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,6,0,0" />
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#E0E0E0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+
+        <Style x:Key="AccentButton" TargetType="Button">
+            <Setter Property="Background" Value="#0078D4" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="18,8" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#1A88D9" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="StandardButton" TargetType="Button">
+            <Setter Property="Background" Value="#333333" />
+            <Setter Property="Foreground" Value="#E0E0E0" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="#444444" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#444444" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
+            <TextBlock Text="❄" FontSize="26" Foreground="#60CDFF" VerticalAlignment="Center" Margin="0,0,10,0" />
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="WinterTray" FontSize="20" FontWeight="Bold" Foreground="#FFFFFF" />
+                <TextBlock Text="Téli hóesés, hófelhalmozódás az ablakokon" FontSize="12" Foreground="#AAAAAA" />
+            </StackPanel>
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,-8,0" Padding="0,0,8,0">
+            <StackPanel>
+                <!-- HÓESÉS -->
+                <TextBlock Text="HÓESÉS ÉS MEGJELENÉS" Style="{StaticResource SectionHeader}" />
+
+                <Border Style="{StaticResource SettingCard}">
+                    <DockPanel>
+                        <TextBlock Text="Hópelyhek stílusa" VerticalAlignment="Center" Foreground="#E0E0E0" FontWeight="Medium" />
+                        <ComboBox Name="CmbStyle" Width="200" HorizontalAlignment="Right" SelectionChanged="OnSettingChanged">
+                            <ComboBoxItem Content="Vegyes (kristály + bolyhos)" IsSelected="True" />
+                            <ComboBoxItem Content="Lágy, bolyhos pelyhek" />
+                            <ComboBoxItem Content="Részletes jégkristályok" />
+                        </ComboBox>
+                    </DockPanel>
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="Hópelyhek száma" Foreground="#E0E0E0" FontWeight="Medium" />
+                            <TextBlock Name="TxtFlakeCount" Text="200 db" Foreground="#60CDFF" HorizontalAlignment="Right" />
+                        </DockPanel>
+                        <Slider Name="SliderFlakeCount" Minimum="30" Maximum="500" SmallChange="10" LargeChange="50" ValueChanged="OnSettingChanged" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="Esési sebesség" Foreground="#E0E0E0" FontWeight="Medium" />
+                            <TextBlock Name="TxtFallSpeed" Text="1.0x" Foreground="#60CDFF" HorizontalAlignment="Right" />
+                        </DockPanel>
+                        <Slider Name="SliderFallSpeed" Minimum="0.3" Maximum="2.5" ValueChanged="OnSettingChanged" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="Természetes szél (negatív = balra)" Foreground="#E0E0E0" FontWeight="Medium" />
+                            <TextBlock Name="TxtWind" Text="0.3" Foreground="#60CDFF" HorizontalAlignment="Right" />
+                        </DockPanel>
+                        <Slider Name="SliderWind" Minimum="-1.5" Maximum="1.5" ValueChanged="OnSettingChanged" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="Hópelyhek mérete" Foreground="#E0E0E0" FontWeight="Medium" />
+                            <TextBlock Name="TxtSize" Text="2.3 - 6.0 px" Foreground="#60CDFF" HorizontalAlignment="Right" />
+                        </DockPanel>
+                        <Slider Name="SliderSize" Minimum="3" Maximum="10" ValueChanged="OnSettingChanged" />
+                    </StackPanel>
+                </Border>
+
+                <!-- EGÉR -->
+                <TextBlock Text="EGÉRMUTATÓ" Style="{StaticResource SectionHeader}" />
+
+                <Border Style="{StaticResource SettingCard}">
+                    <CheckBox Name="ChkMouseRepel" Content="Az egér elfújja a hópelyheket (szél)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="Szél erőssége" Foreground="#E0E0E0" FontWeight="Medium" />
+                            <TextBlock Name="TxtMousePower" Text="1.0x" Foreground="#60CDFF" HorizontalAlignment="Right" />
+                        </DockPanel>
+                        <Slider Name="SliderMousePower" Minimum="0.2" Maximum="3.0" ValueChanged="OnSettingChanged" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="Sebesség-érzékenység (gyorsabb egér = nagyobb hatás)" Foreground="#E0E0E0" FontWeight="Medium" />
+                            <TextBlock Name="TxtMouseSens" Text="1.0x" Foreground="#60CDFF" HorizontalAlignment="Right" />
+                        </DockPanel>
+                        <Slider Name="SliderMouseSens" Minimum="0.0" Maximum="3.0" ValueChanged="OnSettingChanged" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="Alap hatótávolság" Foreground="#E0E0E0" FontWeight="Medium" />
+                            <TextBlock Name="TxtMouseRadius" Text="90 px" Foreground="#60CDFF" HorizontalAlignment="Right" />
+                        </DockPanel>
+                        <Slider Name="SliderMouseRadius" Minimum="40" Maximum="250" ValueChanged="OnSettingChanged" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <CheckBox Name="ChkSweep" Content="Az egérrel le lehet seperni a havat az ablakok tetejéről" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                </Border>
+
+                <!-- HALMOK ÉS ABLAK-DÍSZÍTÉS -->
+                <TextBlock Text="HÓFELHALMOZÓDÁS ÉS ABLAKOK" Style="{StaticResource SectionHeader}" />
+
+                <Border Style="{StaticResource SettingCard}">
+                    <CheckBox Name="ChkAccumulate" Content="A hó megül a szabadon álló ablakok tetején" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <CheckBox Name="ChkSnowOverhang" Content="A hóréteg finoman ráhajoljon az alkalmazás fejlécére (2-4 px puha perem)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <CheckBox Name="ChkShowIcicles" Content="Jégcsapok az ablakok alján és a tetején (kattintással széttörhetőek!)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="Jégcsapok sűrűsége" Foreground="#E0E0E0" FontWeight="Medium" />
+                            <TextBlock Name="TxtIcicleDensity" Text="1.0x" Foreground="#60CDFF" HorizontalAlignment="Right" />
+                        </DockPanel>
+                        <Slider Name="SliderIcicleDensity" Minimum="0.4" Maximum="2.0" SmallChange="0.1" LargeChange="0.2" ValueChanged="OnSettingChanged" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <CheckBox Name="ChkTaskbar" Content="A hó megül a tálca tetején is (alapból a tálca alatt eltűnik)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="Felhalmozódás gyorsasága" Foreground="#E0E0E0" FontWeight="Medium" />
+                            <TextBlock Name="TxtAccum" Text="0.20x" Foreground="#60CDFF" HorizontalAlignment="Right" />
+                        </DockPanel>
+                        <Slider Name="SliderAccum" Minimum="0.05" Maximum="2.0" SmallChange="0.05" LargeChange="0.2" ValueChanged="OnSettingChanged" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="Hóréteg maximális vastagsága" Foreground="#E0E0E0" FontWeight="Medium" />
+                            <TextBlock Name="TxtMaxHeight" Text="22 px" Foreground="#60CDFF" HorizontalAlignment="Right" />
+                        </DockPanel>
+                        <Slider Name="SliderMaxHeight" Minimum="6" Maximum="48" ValueChanged="OnSettingChanged" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="Olvadási idő (0 = nem olvad el)" Foreground="#E0E0E0" FontWeight="Medium" />
+                            <TextBlock Name="TxtMeltRate" Text="soha" Foreground="#60CDFF" HorizontalAlignment="Right" />
+                        </DockPanel>
+                        <Slider Name="SliderMeltRate" Minimum="0" Maximum="300" SmallChange="5" LargeChange="30" ValueChanged="OnSettingChanged" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <CheckBox Name="ChkFallOff" Content="A hó lezúdul, ha az ablakot elmozgatod, bezárod vagy lekicsinyíted" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                </Border>
+
+                <!-- RENDSZER -->
+                <TextBlock Text="TELJESÍTMÉNY ÉS RENDSZER" Style="{StaticResource SectionHeader}" />
+
+                <Border Style="{StaticResource SettingCard}">
+                    <DockPanel>
+                        <TextBlock Text="Képfrissítés (FPS)" VerticalAlignment="Center" Foreground="#E0E0E0" FontWeight="Medium" />
+                        <ComboBox Name="CmbFps" Width="240" HorizontalAlignment="Right" SelectionChanged="OnSettingChanged">
+                            <ComboBoxItem Content="Monitor Natív (VSync / 120+ FPS)" IsSelected="True" />
+                            <ComboBoxItem Content="120 FPS (Szuper sima)" />
+                            <ComboBoxItem Content="60 FPS (Alapértelmezett)" />
+                            <ComboBoxItem Content="30 FPS (Kímélő mód)" />
+                        </ComboBox>
+                    </DockPanel>
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <DockPanel>
+                        <TextBlock Text="Effektek és animációk minősége" VerticalAlignment="Center" Foreground="#E0E0E0" FontWeight="Medium" />
+                        <ComboBox Name="CmbAnimQuality" Width="240" HorizontalAlignment="Right" SelectionChanged="OnSettingChanged">
+                            <ComboBoxItem Content="Teljes / Ultra (120 FPS sima részecskék)" IsSelected="True" />
+                            <ComboBoxItem Content="Közepes (Kiegyensúlyozott)" />
+                            <ComboBoxItem Content="Kikapcsolva (Gyenge gépekre)" />
+                        </ComboBox>
+                    </DockPanel>
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <CheckBox Name="ChkPauseCovered" Content="Szünet, ha ablakok teljesen eltakarják az asztalt (nulla terhelés)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <CheckBox Name="ChkAutoStart" Content="Automatikus indulás a Windows indításakor" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <CheckBox Name="ChkUseWallpaper" Content="Téli háttérkép beállítása (automatikusan visszaáll kilépéskor)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" Margin="0,16,0,0" Padding="0,10,0,0" BorderBrush="#383838" BorderThickness="0,1,0,0">
+            <DockPanel>
+                <Button Content="Hó letakarítása" Style="{StaticResource StandardButton}" Click="OnClearSnowClicked" Margin="0,0,8,0" />
+                <Button Content="Alaphelyzet" Style="{StaticResource StandardButton}" Click="OnResetDefaultsClicked" Margin="0,0,8,0" />
+                <Button Content="Mentés és bezárás" Style="{StaticResource AccentButton}" HorizontalAlignment="Right" Click="OnSaveClicked" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

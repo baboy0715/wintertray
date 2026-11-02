@@ -1,0 +1,14 @@
+<Window x:Class="WinterTray.UI.SnowOverlayWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WinterTray Overlay"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="False"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Focusable="False">
+    <Grid Name="RootGrid" ClipToBounds="True" />
+</Window>
