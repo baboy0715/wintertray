@@ -28,7 +28,7 @@ namespace WinterTray.Native
             // Az overlay-t a normál ablakok tetejére (a WS_EX_TOPMOST tálca alá) helyezzük,
             // így a hóréteg ráhajlása (2-4 px az ablak fejlécén) és az alsó jégcsapok az ablakok keretén megjelenhetnek.
             // A hulló hópelyheket szoftveresen kizárjuk az ablakok és a tálca belső területéről.
-            Win32.SetWindowPos(overlay, Win32.HWND_NOTOPMOST, 0, 0, 0, 0,
+            Win32.SetWindowPos(overlay, Win32.HWND_TOPMOST, 0, 0, 0, 0,
                 Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE);
         }
 

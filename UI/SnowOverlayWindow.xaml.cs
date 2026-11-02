@@ -224,6 +224,8 @@ namespace WinterTray.UI
                 foreach (var w in windows)
                 {
                     if (w.IsTaskbar) continue;
+                    // Csak valódi, címmel rendelkező alkalmazásablakok számítanak képernyő-lefedésnek!
+                    if (string.IsNullOrWhiteSpace(w.Title)) continue;
                     var r = w.PxRect;
                     if (r.Left <= wa.Left + 8 && r.Top <= wa.Top + 8 &&
                         r.Right >= wa.Right - 8 && r.Bottom >= wa.Bottom - 8)

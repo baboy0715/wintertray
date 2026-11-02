@@ -30,6 +30,7 @@ namespace WinterTray.Native
         public const uint SPIF_SENDCHANGE = 0x02;
 
         public static readonly IntPtr HWND_TOP = IntPtr.Zero;
+        public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
         public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
 
         [StructLayout(LayoutKind.Sequential)]

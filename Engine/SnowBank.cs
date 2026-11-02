@@ -8,15 +8,17 @@ namespace WinterTray.Engine
     public sealed class IcicleData
     {
         public int Id;
-        public bool IsTop;        // true = felső jégcsap (az alkalmazás fejlécébe lóg), false = alsó jégcsap
-        public double RelX;       // X az ablak bal szélétől
-        public double BaseY;      // Tő Y koordinátája az ablakhoz képest
-        public double Width;      // Tő szélessége (3.0 - 6.5 px)
-        public double Length;     // Hossza lefelé
-        public double Slant;      // Enyhe aszimmetria
-        public int MaxHits;       // Széttöréshez szükséges kattintások (1-3)
-        public int HitsRemaining; // Hátralévő életerő
-        public bool Shattered;    // Széttört-e már
+        public bool IsTop;           // true = felső jégcsap (az alkalmazás fejlécébe lóg), false = alsó jégcsap
+        public double RelX;          // X az ablak bal szélétől
+        public double BaseY;         // Tő Y koordinátája az ablakhoz képest
+        public double Width;         // Tő szélessége (3.0 - 6.5 px)
+        public double TargetLength;  // Végleges kifejlett hossz
+        public double CurrentLength; // Jelenlegi hossz (idővel lassan, természetesen növekszik!)
+        public double Length => CurrentLength;
+        public double Slant;         // Enyhe aszimmetria
+        public int MaxHits;          // Széttöréshez szükséges kattintások (1-3)
+        public int HitsRemaining;    // Hátralévő életerő
+        public bool Shattered;       // Széttört-e már
     }
 
     /// <summary>
@@ -340,6 +342,39 @@ namespace WinterTray.Engine
             }
             Peak = peak;
             if (maxDelta > 0.02f) _dirty = true;
+
+            // Jégcsapok lassú, természetes növekedése az idő előrehaladtával
+            if (Icicles.Count > 0)
+            {
+                bool icicleGrew = false;
+                for (int i = 0; i < Icicles.Count; i++)
+                {
+                    var ic = Icicles[i];
+                    if (ic.Shattered) continue;
+
+                    double localSnow = HeightAt(Left + ic.RelX);
+                    // Ha van hó felette a peremen, szépen lassan növekszik a jégcsap
+                    if (localSnow > 0.5 || Peak > 0.7f)
+                    {
+                        if (ic.CurrentLength < ic.TargetLength)
+                        {
+                            double growSpeed = 0.40 + Math.Min(localSnow, 10.0) * 0.05;
+                            ic.CurrentLength = Math.Min(ic.TargetLength, ic.CurrentLength + growSpeed * dt);
+                            icicleGrew = true;
+                        }
+                    }
+                    else
+                    {
+                        // Ha nincs hó (pl. lesöpörték), a jégcsap lassan visszahúzódik / elolvad
+                        if (ic.CurrentLength > 0.3)
+                        {
+                            ic.CurrentLength = Math.Max(0.0, ic.CurrentLength - 0.7 * dt);
+                            icicleGrew = true;
+                        }
+                    }
+                }
+                if (icicleGrew) _dirty = true;
+            }
         }
 
         // ------------------------------------------------------------------ JÉGCSAPOK KATTINTÁSA ÉS CSEPPENÉSE
@@ -363,7 +398,7 @@ namespace WinterTray.Engine
             for (int i = 0; i < Icicles.Count; i++)
             {
                 var ic = Icicles[i];
-                if (ic.Shattered) continue;
+                if (ic.Shattered || ic.CurrentLength < 2.0) continue;
 
                 double rootX = ic.RelX;
                 double rootY = ic.BaseY;
@@ -382,6 +417,7 @@ namespace WinterTray.Engine
                 if (ic.HitsRemaining <= 0)
                 {
                     ic.Shattered = true;
+                    ic.CurrentLength = 0;
                     shattered = true;
                 }
 
@@ -524,9 +560,10 @@ namespace WinterTray.Engine
                         Id = ++_icicleCounter,
                         IsTop = true,
                         RelX = curX,
-                        BaseY = 0,
+                        BaseY = 1.5,
                         Width = w,
-                        Length = len,
+                        TargetLength = len,
+                        CurrentLength = 0.5,
                         Slant = (rnd.NextDouble() - 0.5) * 0.8,
                         MaxHits = maxHits,
                         HitsRemaining = maxHits,
@@ -570,7 +607,8 @@ namespace WinterTray.Engine
                             RelX = curX,
                             BaseY = Height,
                             Width = w,
-                            Length = len,
+                            TargetLength = len,
+                            CurrentLength = 0.5,
                             Slant = (rnd.NextDouble() - 0.5) * 1.0,
                             MaxHits = maxHits,
                             HitsRemaining = maxHits,
@@ -654,13 +692,24 @@ namespace WinterTray.Engine
             _tmp[0] = 0f;
             _tmp[n - 1] = 0f;
 
-            // 3. Pontok generálása: az alapvonal szigorúan Y = 0 (az ablak felső éle), a hó Y <= 0 (fölötte ül)
-            // A lekerekített sarok íve alá/mögé semmi sem lóg be, a Windows 11 kerek sarkai 100%-ban tiszták!
+            // 3. Pontok generálása:
+            // A hóréteg enyhén (2.5 px) ráhajlik az ablak felső peremére (megszünteti a fekete csíkot/hézagot!)
+            // A sarkoknál a lekerekítés védőtávolságában (TaperDist) finoman visszafut 0-ra, így a kerek sarkok hibátlanok maradnak.
             for (int i = 0; i < n; i++)
             {
                 double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
-                _basePts[i] = new Point(x, 0);
-                _topPts[i] = new Point(x, -_tmp[i]);
+                double dLeft = x - activeLeft;
+                double dRight = (activeLeft + activeWidth) - x;
+                double dCorner = Math.Min(dLeft, dRight);
+                double yBase = 2.5;
+                if (dCorner < TaperDist)
+                {
+                    double u = Math.Clamp(dCorner / TaperDist, 0.0, 1.0);
+                    yBase *= u * u * (3.0 - 2.0 * u);
+                }
+
+                _basePts[i] = new Point(x, yBase);
+                _topPts[i] = new Point(x, yBase - _tmp[i]);
             }
 
             // 3. Felső hógeometria építése
@@ -674,11 +723,11 @@ namespace WinterTray.Engine
                 int i = 0;
                 while (i < n)
                 {
-                    while (i < n && _tmp[i] <= 0.04f) i++;
+                    while (i < n && _tmp[i] <= 0.15f) i++;
                     if (i >= n) break;
 
                     int spanStart = Math.Max(0, i - 1);
-                    while (i < n && _tmp[i] > 0.04f) i++;
+                    while (i < n && _tmp[i] > 0.15f) i++;
                     int spanEnd = Math.Min(n - 1, i);
 
                     if (spanEnd <= spanStart) continue;
@@ -749,20 +798,22 @@ namespace WinterTray.Engine
                 for (int i = 0; i < Icicles.Count; i++)
                 {
                     var ic = Icicles[i];
-                    if (ic.Shattered) continue;
+                    if (ic.Shattered || ic.CurrentLength < 1.0) continue;
 
                     hasAny = true;
+                    double curLen = ic.CurrentLength;
+                    double growRatio = Math.Clamp(curLen / Math.Max(3.0, ic.TargetLength), 0.35, 1.0);
                     double px = ic.RelX;
                     double py = ic.BaseY;
-                    double hw = ic.Width * 0.5;
-                    double tipX = px + ic.Slant;
-                    double tipY = py + (ic.IsTop ? ic.Length : ic.Length);
-                    double midY = py + (ic.IsTop ? ic.Length * 0.45 : ic.Length * 0.45);
+                    double hw = ic.Width * 0.5 * growRatio;
+                    double tipX = px + ic.Slant * growRatio;
+                    double tipY = py + curLen;
+                    double midY = py + curLen * 0.45;
 
                     Point pBaseL = new Point(px - hw, py);
-                    Point pMidL = new Point(px - hw * 0.35 + ic.Slant * 0.4, midY);
+                    Point pMidL = new Point(px - hw * 0.35 + ic.Slant * 0.4 * growRatio, midY);
                     Point pTip = new Point(tipX, tipY);
-                    Point pMidR = new Point(px + hw * 0.35 + ic.Slant * 0.4, midY);
+                    Point pMidR = new Point(px + hw * 0.35 + ic.Slant * 0.4 * growRatio, midY);
                     Point pBaseR = new Point(px + hw, py);
 
                     fillCtx.BeginFigure(pBaseL, true, true);
@@ -773,7 +824,7 @@ namespace WinterTray.Engine
 
                     // Belső kristálycsillogás
                     Point pShineTop = new Point(px - hw * 0.4, py + 1.0);
-                    Point pShineMid = new Point(px - hw * 0.15 + ic.Slant * 0.3, midY);
+                    Point pShineMid = new Point(px - hw * 0.15 + ic.Slant * 0.3 * growRatio, midY);
                     Point pShineTip = new Point(tipX - 0.2, tipY - 1.2);
 
                     shineCtx.BeginFigure(pShineTop, false, false);

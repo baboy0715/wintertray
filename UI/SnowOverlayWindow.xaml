@@ -6,7 +6,7 @@
         ResizeMode="NoResize"
         AllowsTransparency="True"
         Background="Transparent"
-        Topmost="False"
+        Topmost="True"
         ShowInTaskbar="False"
         ShowActivated="False"
         Focusable="False">

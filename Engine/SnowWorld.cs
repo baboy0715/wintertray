@@ -448,6 +448,8 @@ namespace WinterTray.Engine
             for (int i = 0; i < _windows.Count; i++)
             {
                 var w = _windows[i];
+                if (w.IsTaskbar) continue;
+                if (string.IsNullOrWhiteSpace(w.Title)) continue;
                 if (w.Rect.Contains(x, y)) return true;
             }
             return false;
@@ -459,6 +461,7 @@ namespace WinterTray.Engine
             {
                 var w = _windows[i];
                 if (w.HWnd == hwnd) break; // Z-sorrendben a saját ablakunkig nézzük a feljebb lévőket
+                if (w.IsTaskbar || string.IsNullOrWhiteSpace(w.Title)) continue;
                 if (w.Rect.Contains(x, y)) return true;
             }
             return false;
@@ -758,18 +761,28 @@ namespace WinterTray.Engine
                     if (dx > R) continue;
 
                     float h = bank.H[i];
-                    if (h < 0.5f) continue;
+                    if (h <= 0.02f) continue;
 
                     double dy = cur.Y - (bank.Top - h * 0.5);
-                    if (Math.Abs(dy) > R * 0.9 + h * 0.5 + 10) continue;
+                    if (Math.Abs(dy) > R * 0.9 + h * 0.5 + 14) continue;
 
                     double f = 1 - dx / R;
-                    double frac = Math.Clamp(f * (0.15 + speed / 1200.0) * 12.0 * dt, 0, 0.6);
-                    if (frac <= 0) continue;
+                    double frac = Math.Clamp(f * (0.22 + speed / 800.0) * 14.0 * dt, 0.05, 0.95);
 
                     float removed = (float)(h * frac);
-                    bank.H[i] -= removed;
-                    bank.T[i] = Math.Max(0f, bank.T[i] * (float)(1 - frac));
+                    // Ha a söprés után már csak egy vékony réteg (0.9 px alatt) maradna,
+                    // teljesen letakarítjuk 0-ra, így nem marad vissza zavaró fehér vonal!
+                    if (h - removed < 0.9f || frac > 0.65)
+                    {
+                        removed = h;
+                        bank.H[i] = 0f;
+                        bank.T[i] = 0f;
+                    }
+                    else
+                    {
+                        bank.H[i] -= removed;
+                        bank.T[i] = Math.Max(0f, bank.T[i] * (float)(1 - frac));
+                    }
                     changed = true;
 
                     if (budget > 0)

@@ -8,6 +8,8 @@ namespace WinterTray.Native
     public sealed class TrackedWindow
     {
         public IntPtr HWnd { get; init; }
+        public string Title { get; init; } = "";
+        public string ClassName { get; init; } = "";
         /// <summary>Az ablak helye az overlay DIP koordinátáiban.</summary>
         public Rect Rect { get; init; }
         /// <summary>Az ablak helye fizikai pixelben.</summary>
@@ -17,9 +19,10 @@ namespace WinterTray.Native
 
     public sealed class WindowTracker
     {
-        private static readonly HashSet<string> IgnoredClasses = new()
+        private static readonly HashSet<string> IgnoredClasses = new(StringComparer.OrdinalIgnoreCase)
         {
-            "Progman", "WorkerW", "Windows.UI.Core.CoreWindow"
+            "Progman", "WorkerW", "Windows.UI.Core.CoreWindow",
+            "XamlExplorerHostIslandWindow", "DesktopWindowXamlSource", "Shell_LightDismissOverlay"
         };
 
         private readonly IntPtr _overlay;
@@ -68,6 +71,10 @@ namespace WinterTray.Native
                 if (!Win32.GetAccurateWindowRect(hWnd, out var px)) return true;
                 if (px.Width < 100 || px.Height < 40) return true;
 
+                _sb.Clear();
+                Win32.GetWindowText(hWnd, _sb, _sb.Capacity);
+                string title = _sb.ToString();
+
                 Point tl = _toDip(new Point(px.Left, px.Top));
                 Point br = _toDip(new Point(px.Right, px.Bottom));
                 var rect = new Rect(tl, br);
@@ -75,6 +82,8 @@ namespace WinterTray.Native
                 _list.Add(new TrackedWindow
                 {
                     HWnd = hWnd,
+                    Title = title,
+                    ClassName = cls,
                     Rect = rect,
                     PxRect = px,
                     IsTaskbar = taskbar
