@@ -31,8 +31,7 @@ namespace WinterTray.Engine
     public sealed class SnowBank
     {
         public const double Step = 4.0;
-        public const double EdgeMargin = 2.0;    // 2 px margó a legszélétől
-        public const double CornerRadius = 8.0;  // Windows 11 DWM lekerekítési sugár
+        public const double EdgeMargin = 8.0;    // 8 px védőtávolság a Windows 11 lekerekített sarkaihoz (tiszta sarkok!)
         private const float Slope = 2.6f;
 
         public IntPtr HWnd;
@@ -474,9 +473,6 @@ namespace WinterTray.Engine
 
             double activeLeft = EdgeMargin;
             double activeWidth = Math.Max(Step * 2, Width - EdgeMargin * 2.0);
-            double R = CornerRadius;
-            double leftCornerEnd = R;
-            double rightCornerStart = Width - R;
 
             if (_topPts.Length < n)
             {
@@ -484,44 +480,25 @@ namespace WinterTray.Engine
                 _basePts = new Point[n];
             }
 
-            // 1. Felső hóréteg magasságainak számítása lokális koordinátákban (0 .. Width)
+            // 1. Felső hóréteg: az ablak vízszintes peremén fut végig, a sarkok előtt (6px-ben) finoman lefut nullára
+            const double TaperDist = 6.0;
             for (int i = 0; i < n; i++)
             {
                 double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
-
-                // Sarok-elvékonyodás Hermite-simítással
-                double dLeft = x;
-                double dRight = Width - x;
-                double cornerDist = Math.Min(dLeft, dRight);
-                double cornerTaper = 1.0;
-                if (cornerDist < R + 3.0)
+                double dLeft = x - activeLeft;
+                double dRight = (activeLeft + activeWidth) - x;
+                double d = Math.Min(dLeft, dRight);
+                double taper = 1.0;
+                if (d < TaperDist)
                 {
-                    double u = Math.Clamp(cornerDist / (R + 3.0), 0.0, 1.0);
-                    cornerTaper = u * u * (3.0 - 2.0 * u);
+                    double u = Math.Clamp(d / TaperDist, 0.0, 1.0);
+                    taper = u * u * (3.0 - 2.0 * u);
                 }
 
-                _tmp[i] = (float)(H[i] * cornerTaper);
-
-                // Az ablak felső peremének alapmagassága (lekerekített sarkokkal lefelé ível)
-                double yBase = 0;
-                if (x < leftCornerEnd)
-                {
-                    double dx = leftCornerEnd - x;
-                    double dy = R - Math.Sqrt(Math.Max(0.0, R * R - dx * dx));
-                    yBase = dy;
-                }
-                else if (x > rightCornerStart)
-                {
-                    double dx = x - rightCornerStart;
-                    double dy = R - Math.Sqrt(Math.Max(0.0, R * R - dx * dx));
-                    yBase = dy;
-                }
-
-                _basePts[i] = new Point(x, yBase);
-                _topPts[i] = new Point(x, yBase - _tmp[i]);
+                _tmp[i] = (float)(H[i] * taper);
             }
 
-            // 2. Simítás a természetes hótakaróért (SZIGORÚAN _basePts.Y-hoz képest mérve, így a sarok hibátlan!)
+            // 2. Simítás a természetes, lágy hótakaróért
             for (int pass = 0; pass < 2; pass++)
             {
                 float prev = _tmp[0];
@@ -531,8 +508,32 @@ namespace WinterTray.Engine
                     float next = i < n - 1 ? _tmp[i + 1] : cur;
                     _tmp[i] = 0.25f * prev + 0.5f * cur + 0.25f * next;
                     prev = cur;
-                    _topPts[i] = new Point(_basePts[i].X, _basePts[i].Y - _tmp[i]);
                 }
+            }
+
+            // A sarkok garantált tisztasága: a széleken szigorúan 0-ra kényszerítjük
+            for (int i = 0; i < n; i++)
+            {
+                double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
+                double dLeft = x - activeLeft;
+                double dRight = (activeLeft + activeWidth) - x;
+                double d = Math.Min(dLeft, dRight);
+                if (d < TaperDist)
+                {
+                    double u = Math.Clamp(d / TaperDist, 0.0, 1.0);
+                    _tmp[i] *= (float)(u * u * (3.0 - 2.0 * u));
+                }
+            }
+            _tmp[0] = 0f;
+            _tmp[n - 1] = 0f;
+
+            // 3. Pontok generálása: az alapvonal szigorúan Y = 0 (az ablak felső éle), a hó Y <= 0 (fölötte ül)
+            // A lekerekített sarok íve alá/mögé semmi sem lóg be, a Windows 11 kerek sarkai 100%-ban tiszták!
+            for (int i = 0; i < n; i++)
+            {
+                double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
+                _basePts[i] = new Point(x, 0);
+                _topPts[i] = new Point(x, -_tmp[i]);
             }
 
             // 3. Felső hógeometria építése

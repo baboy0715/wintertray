@@ -919,9 +919,12 @@ namespace WinterTray.Engine
             }
 
             // 2. Részecskék (lavina és söprés) - közvetlen sprite kirajzolás, NULLA PushOpacity / PushTransform
+            // A tálca alatt azonnal eltűnnek, nem látszódnak a tálcán
             for (int i = 0; i < _particleCount; i++)
             {
                 ref readonly var p = ref _particles[i];
+                if (p.Y >= Height - 44) continue;
+
                 double t = p.Age / p.Life;
                 switch (p.Kind)
                 {
@@ -953,11 +956,11 @@ namespace WinterTray.Engine
                 }
             }
 
-            // 3. Hulló hópelyhek - a nyitott ablakokra vagy a tálcára nem esik hó (csak a háttérben az asztalon)
+            // 3. Hulló hópelyhek - a nyitott ablakokra vagy a tálcára nem esik hó (eltűnnek a tálca alatt)
             for (int i = 0; i < _flakes.Count; i++)
             {
                 var f = _flakes[i];
-                if (IsInsideAnyWindow(f.X, f.Y)) continue;
+                if (f.Y >= Height - 44 || IsInsideAnyWindow(f.X, f.Y)) continue;
 
                 switch (f.Kind)
                 {
@@ -991,7 +994,7 @@ namespace WinterTray.Engine
                 var f = _flakes[i];
                 if (f.Kind == FlakeKind.Bokeh)
                 {
-                    if (IsInsideAnyWindow(f.X, f.Y)) continue;
+                    if (f.Y >= Height - 44 || IsInsideAnyWindow(f.X, f.Y)) continue;
 
                     double dia = f.Size * 4.6;
                     var img = SnowSprites.GetBokeh(f.Opacity * 0.6);
