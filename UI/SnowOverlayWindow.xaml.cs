@@ -67,6 +67,13 @@ namespace WinterTray.UI
 
             Loaded += OnLoaded;
             Closed += OnClosed;
+            StateChanged += (s, e) =>
+            {
+                if (WindowState != WindowState.Normal)
+                {
+                    WindowState = WindowState.Normal;
+                }
+            };
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -134,6 +141,12 @@ namespace WinterTray.UI
 
             _pollAccumulator += dt;
             _zOrderAccumulator += dt;
+
+            if (_hwnd != IntPtr.Zero && Win32.IsIconic(_hwnd))
+            {
+                Win32.ShowWindow(_hwnd, Win32.SW_RESTORE);
+                ZOrder.Enforce(_hwnd);
+            }
 
             // az overlay Z-sorrendjének fenntartása (asztal fölött, ablakok alatt)
             if (_zOrderAccumulator >= 0.5)

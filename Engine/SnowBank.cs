@@ -33,7 +33,7 @@ namespace WinterTray.Engine
     public sealed class SnowBank
     {
         public const double Step = 4.0;
-        public const double EdgeMargin = 14.0;   // 14 px védőtávolság a Windows 11 lekerekített sarkaihoz (tökéletesen tiszta sarkok!)
+        public const double EdgeMargin = 0.0;    // A hó a teljes ablak tetején végigfut, a szélekig normálisan kimegy!
         private const float Slope = 2.6f;
 
         public IntPtr HWnd;
@@ -596,22 +596,20 @@ namespace WinterTray.Engine
                 return;
             }
 
-            double activeLeft = EdgeMargin;
-            double activeWidth = Math.Max(Step * 2, Width - EdgeMargin * 2.0);
-
             if (_topPts.Length < n)
             {
                 _topPts = new Point[n];
                 _basePts = new Point[n];
             }
 
-            // 1. Felső hóréteg: az ablak vízszintes peremén fut végig, a sarkok előtt (14px-ben) finoman lefut nullára
-            const double TaperDist = 14.0;
+            // 1. Felső hóréteg: a hó a teljes szélességen végigfut X = 0-tól X = Width-ig (a szélekig normálisan kimegy!)
+            // A legszélső 4 pixelben finoman rásimul a Windows 11 kerek sarkára.
+            const double TaperDist = 4.0;
             for (int i = 0; i < n; i++)
             {
-                double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
-                double dLeft = x - activeLeft;
-                double dRight = (activeLeft + activeWidth) - x;
+                double x = Math.Min(i * Step, Width);
+                double dLeft = x;
+                double dRight = Width - x;
                 double d = Math.Min(dLeft, dRight);
                 double taper = 1.0;
                 if (d < TaperDist)
@@ -636,12 +634,12 @@ namespace WinterTray.Engine
                 }
             }
 
-            // A Windows 11 lekerekített sarkainak garantált tisztasága: a széleken szigorúan 0-ra kényszerítjük
+            // A Windows 11 kerek sarkaihoz finom lefutás a legszélső 4 px-en
             for (int i = 0; i < n; i++)
             {
-                double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
-                double dLeft = x - activeLeft;
-                double dRight = (activeLeft + activeWidth) - x;
+                double x = Math.Min(i * Step, Width);
+                double dLeft = x;
+                double dRight = Width - x;
                 double d = Math.Min(dLeft, dRight);
                 if (d < TaperDist)
                 {
@@ -653,24 +651,14 @@ namespace WinterTray.Engine
             _tmp[n - 1] = 0f;
 
             // 3. Pontok generálása:
-            // A hóréteg az ablak felső peremén ül (Y = 0.5), elfedve a felső szegélycsíkot anélkül,
-            // hogy belelógna a fejlécbe vagy megcsonkítaná a Windows 11 kerek sarkait.
-            // A sarkoknál (TaperDist távolságon belül) az alapvonal finoman visszasimul 0-ra.
+            // A hóréteg az ablak felső peremén Y = 3.0-ig fekszik rá, így teljesen eltakarja a felső sötét szegélyvonalat
+            // (a fekete csík 100%-ban megszűnik, tökéletesen tiszta hó fedi a fejlécet!)
+            const double YOverlap = 3.0;
             for (int i = 0; i < n; i++)
             {
-                double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
-                double dLeft = x - activeLeft;
-                double dRight = (activeLeft + activeWidth) - x;
-                double dCorner = Math.Min(dLeft, dRight);
-                double yBase = 0.5;
-                if (dCorner < TaperDist)
-                {
-                    double u = Math.Clamp(dCorner / TaperDist, 0.0, 1.0);
-                    yBase *= u * u * (3.0 - 2.0 * u);
-                }
-
-                _basePts[i] = new Point(x, yBase);
-                _topPts[i] = new Point(x, yBase - _tmp[i]);
+                double x = Math.Min(i * Step, Width);
+                _basePts[i] = new Point(x, YOverlap);
+                _topPts[i] = new Point(x, YOverlap - _tmp[i]);
             }
 
             // 3. Felső hógeometria építése

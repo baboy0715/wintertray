@@ -19,15 +19,16 @@ namespace WinterTray.Native
         {
             if (overlay == IntPtr.Zero) return;
 
-            // Ha az "Asztal megjelenítése" minimalizálná az overlayt, visszaállítjuk.
+            // Ha az "Asztal megjelenítése" minimalizálná az overlayt, azonnal visszaállítjuk.
             if (Win32.IsIconic(overlay))
             {
-                Win32.ShowWindow(overlay, Win32.SW_SHOWNOACTIVATE);
+                Win32.ShowWindow(overlay, Win32.SW_RESTORE);
             }
 
-            // Az overlay-t a normál ablakok tetejére (a WS_EX_TOPMOST ablakok, pl. Képmetsző / Snipping Tool és a tálca alá) helyezzük.
-            // Így a képernyőmentés/screenshot készítésekor a Képmetsző ablaka tisztán az overlay felett jelenik meg.
-            Win32.SetWindowPos(overlay, Win32.HWND_NOTOPMOST, 0, 0, 0, 0,
+            // Az overlay mindig Topmost szinten marad, így a jobb alsó tálcázás (Asztal megjelenítése / Win+D)
+            // sem tünteti el a hóesést az asztalról.
+            // A Képmetsző / Screenshot közben pedig a dedikált IsScreenCaptureActive érzékelő azonnal elrejti.
+            Win32.SetWindowPos(overlay, Win32.HWND_TOPMOST, 0, 0, 0, 0,
                 Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE);
         }
 

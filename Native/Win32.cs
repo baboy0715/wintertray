@@ -23,6 +23,7 @@ namespace WinterTray.Native
 
         public const uint GW_HWNDPREV = 3;
         public const int SW_SHOWNOACTIVATE = 4;
+        public const int SW_RESTORE = 9;
 
         public const uint SPI_GETDESKWALLPAPER = 0x0073;
         public const uint SPI_SETDESKWALLPAPER = 0x0014;
