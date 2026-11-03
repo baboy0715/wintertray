@@ -12,5 +12,9 @@ WinterTray.deps.json
 WinterTray.runtimeconfig.json
 *.old
 SingleFileRelease/
-
-
+App_Release/
+publish/
+*.msix
+**/*.msix
+MSIX_Package/PackageRoot/
+MSIX_Package/Output/

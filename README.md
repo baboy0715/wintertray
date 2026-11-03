@@ -1,17 +1,22 @@
-# ❄ WinterTray - Téli Asztali Hóesés és Ablak-Hófelhalmozódás Windows 11-re
+# ❄ / 🍂 WinterTray - Szezonális Asztali Hóesés és Őszi Falevelek Windows 11-re
 
-A **WinterTray** egy könnyű, energiatakarékos, hardveresen gyorsított Windows 11 asztali alkalmazás, amely valósághű téli hóesést varázsol a képernyődre. A hópelyhek nemcsak hullanak a háttérben, hanem **valós időben felhalmozódnak a nyitott ablakok tetején és a tálcán**, ablakmozgatáskor vagy bezáráskor pedig **lavinaszerűen lezúdulnak**, pontosan úgy, mint a videóban látott népszerű effektnél!
+A **WinterTray** egy könnyű, energiatakarékos, hardveresen gyorsított Windows 11 asztali alkalmazás, amely valósághű téli hóesést és őszi falevélhullást varázsol a képernyődre. A hópelyhek és falevelek nemcsak hullanak a háttérben, hanem **valós időben ráfekszenek és megülnek a nyitott ablakok tetején és a tálcán**, ablakmozgatáskor együtt mozognak az ablakkal, és az egérkurzorral lesöpörhetőek vagy elhessegethetőek!
 
 ---
 
 ## 🌟 Főbb funkciók
 
-- **Ablak-hófelhalmozódás (Window Snow Caps):** A hópelyhek automatikusan megtelepednek bármely aktív vagy háttérben lévő ablak felső szegélyén és a tálcán, organikus, puha hódunyhát képezve.
-- **Lavina-effektus (Avalanche Effect):** Amikor egy ablakot elmozdítasz vagy bezársz, a rajta felhalmozódott hó azonnal elveszíti a támasztékát, és darabokban lezúdul az asztalra vagy az alsóbb ablakokra.
-- **Átklikkelhető (Click-Through Overlay):** Az átlátszó hóréteg nem fogja el az egérkattintásokat (`WS_EX_TRANSPARENT`), így a munkát és a játékot semennyire sem zavarja.
-- **Egér-légörvény (Mouse Breeze):** Az egérmutató mozgatásakor a kurzor körül finom légörvény keletkezik, amely szétrebiszkálja a közelben szálló hópelyheket.
-- **Többmonitoros támogatás:** A kiterjesztett asztal teljes felületén (akár több különböző felbontású monitoron) folyamatos a hóesés.
-- **Tálca ikon (System Tray):** Az értesítési területen futó ikonról egy kattintással elérhető a beállítások menü, a hó azonnali letakarítása, a szüneteltetés vagy az automatikus indulás.
+- **Szezonválasztó (Tél ❄ / Ősz 🍂):** Egyetlen kattintással válthatsz a csendes téli hóesés és a meleg őszi falevelek hullása között a tálca menüből vagy a Beállítások ablakból.
+- **Őszi falevél-szimuláció:** Különböző színű (narancssárga, aranybarna, karmazsinvörös, alkonyati) és formájú (juhar, tölgy, nyír) levelek hullanak a képernyő tetejéről természetes szinuszos ringatózással és finom forgással.
+- **Ablak-ütközés:** A Win32 EnumWindows és GetWindowRect hívásokkal figyeli a látható ablakok felső szélét (Top). Ha egy levél eléri az ablak felső lécét, megáll és ráfekszik a felületre!
+- **Interakció (GetCursorPos):** Ha a felhasználó a kurzort a megült falevelek fölé viszi, a levél lendületet kapva lerepül az ablakról és esik tovább, pont mint a hópelyhek lesöprésekor!
+- **Megült levelek élettartama:** A felületen megpihent levelek 10 másodperc után finoman eltűnnek (fade out), hogy a memória és a képernyő mindig tiszta és dinamikus maradjon.
+- **Ablak-hófelhalmozódás (Window Snow Caps):** Téli módban a hópelyhek automatikusan megtelepednek bármely ablak felső szegélyén, organikus, puha hódunyhát képezve.
+- **Lavina-effektus (Avalanche Effect):** Amikor egy ablakot elmozdítasz vagy bezársz, a rajta felhalmozódott hó vagy falevelek lezúdulnak / lehullanak.
+- **Szezonális háttérkép:** Téli módban a `wallpaper.jpeg`, őszi módban a `wallpaper-fall.jpeg` automatikus alkalmazása, kilépéskor az eredeti háttérkép hibátlan visszaállításával.
+- **Átklikkelhető (Click-Through Overlay):** Az átlátszó réteg nem fogja el az egérkattintásokat (`WS_EX_TRANSPARENT`), így a munkát és a játékot semennyire sem zavarja.
+- **Többmonitoros támogatás:** A kiterjesztett asztal teljes felületén folyamatos a működés.
+- **Tálca ikon (System Tray):** Értesítési területről elérhető gyors évszakváltás, beállítások, letakarítás, szüneteltetés és kilépés.
 
 ---
 

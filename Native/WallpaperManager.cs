@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Win32;
+using WinterTray.Engine;
 
 namespace WinterTray.Native
 {
@@ -57,27 +58,31 @@ namespace WinterTray.Native
         private static readonly string StateFile = Path.Combine(ConfigDir, "wallpaper_state.json");
         private static readonly string BackupBmpFile = Path.Combine(ConfigDir, "original_wallpaper_backup.bmp");
         private static readonly string LegacyBackupDat = Path.Combine(ConfigDir, "original_wallpaper_backup.dat");
-        private static readonly string ActiveBmpFile = Path.Combine(ConfigDir, "winter_wallpaper_active.bmp");
+        private static readonly string ActiveBmpFile = Path.Combine(ConfigDir, "season_wallpaper_active.bmp");
+        private static readonly string LegacyActiveBmp = Path.Combine(ConfigDir, "winter_wallpaper_active.bmp");
 
         public static bool IsApplied { get; private set; }
+        private static AppSeason? _lastAppliedSeason;
 
-        public static string? FindWinterWallpaperPath()
+        public static string? FindWallpaperPath(AppSeason season)
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             string currentDir = Directory.GetCurrentDirectory();
 
+            string fileName = season == AppSeason.Autumn ? "wallpaper-fall" : "wallpaper";
+
             string[] candidates =
             {
-                Path.Combine(baseDir, "wallpaper.jpeg"),
-                Path.Combine(baseDir, "wallpaper.jpg"),
-                Path.Combine(baseDir, "Resources", "wallpaper.jpeg"),
-                Path.Combine(currentDir, "wallpaper.jpeg"),
-                Path.Combine(currentDir, "wallpaper.jpg"),
-                Path.Combine(baseDir, "..", "wallpaper.jpeg"),
-                Path.Combine(baseDir, "..", "..", "wallpaper.jpeg"),
-                Path.Combine(baseDir, "..", "..", "..", "wallpaper.jpeg"),
-                @"C:\projektekű\WinterTray\wallpaper.jpeg",
-                Path.Combine(ConfigDir, "wallpaper.jpeg")
+                Path.Combine(baseDir, $"{fileName}.jpeg"),
+                Path.Combine(baseDir, $"{fileName}.jpg"),
+                Path.Combine(baseDir, "Resources", $"{fileName}.jpeg"),
+                Path.Combine(currentDir, $"{fileName}.jpeg"),
+                Path.Combine(currentDir, $"{fileName}.jpg"),
+                Path.Combine(baseDir, "..", $"{fileName}.jpeg"),
+                Path.Combine(baseDir, "..", "..", $"{fileName}.jpeg"),
+                Path.Combine(baseDir, "..", "..", "..", $"{fileName}.jpeg"),
+                $@"C:\projektekű\WinterTray\{fileName}.jpeg",
+                Path.Combine(ConfigDir, $"{fileName}.jpeg")
             };
 
             foreach (var p in candidates)
@@ -89,15 +94,25 @@ namespace WinterTray.Native
                 }
                 catch { }
             }
+
+            // Ha őszi képet nem talált, de téli van (vagy fordítva)
+            if (season == AppSeason.Autumn)
+            {
+                return FindWallpaperPath(AppSeason.Winter);
+            }
             return null;
         }
 
-        public static bool ApplyWinterWallpaper()
-        {
-            if (IsApplied) return true;
+        public static string? FindWinterWallpaperPath() => FindWallpaperPath(AppSeason.Winter);
 
-            string? winterWallpaper = FindWinterWallpaperPath();
-            if (winterWallpaper == null) return false;
+        public static bool ApplyWinterWallpaper() => ApplyWallpaper(AppSeason.Winter);
+
+        public static bool ApplyWallpaper(AppSeason season)
+        {
+            if (IsApplied && _lastAppliedSeason == season) return true;
+
+            string? wallpaperSource = FindWallpaperPath(season);
+            if (wallpaperSource == null) return false;
 
             try
             {
@@ -109,93 +124,98 @@ namespace WinterTray.Native
                     try { File.Copy(LegacyBackupDat, BackupBmpFile, true); } catch { }
                 }
 
-                // 1. Az eredeti háttérkép lekérése
-                string originalPath = "";
-                int originalPosition = 4; // DWPO_FILL
-
-                try
+                // 1. Az eredeti háttérkép lekérése és biztonsági mentése, ha még nem tettük meg
+                if (!IsApplied && !File.Exists(BackupBmpFile))
                 {
-                    var dw = (IDesktopWallpaper)new DesktopWallpaper();
-                    originalPath = dw.GetWallpaper(null) ?? "";
-                    originalPosition = dw.GetPosition();
-                }
-                catch { }
+                    string originalPath = "";
+                    int originalPosition = 4; // DWPO_FILL
 
-                if (string.IsNullOrEmpty(originalPath))
-                {
-                    var sb = new StringBuilder(512);
-                    if (Win32.SystemParametersInfo(Win32.SPI_GETDESKWALLPAPER, (uint)sb.Capacity, sb, 0) != 0)
-                    {
-                        originalPath = sb.ToString();
-                    }
-                }
-
-                string style = "10";
-                string tile = "0";
-                try
-                {
-                    using var key = Registry.CurrentUser.OpenSubKey(DesktopRegKey, false);
-                    if (key != null)
-                    {
-                        if (string.IsNullOrEmpty(originalPath))
-                        {
-                            originalPath = key.GetValue("Wallpaper")?.ToString() ?? "";
-                        }
-                        style = key.GetValue("WallpaperStyle")?.ToString() ?? "10";
-                        tile = key.GetValue("TileWallpaper")?.ToString() ?? "0";
-                    }
-                }
-                catch { }
-
-                // Biztonsági mentés a jelenlegi háttérképről (szigorúan .bmp formátumban!)
-                string transcoded = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    @"Microsoft\Windows\Themes\TranscodedWallpaper");
-
-                string sourceToBackup = File.Exists(originalPath) ? originalPath
-                    : (File.Exists(transcoded) ? transcoded : "");
-
-                if (!string.IsNullOrEmpty(sourceToBackup) && File.Exists(sourceToBackup))
-                {
                     try
                     {
-                        if (!string.Equals(Path.GetFullPath(sourceToBackup), Path.GetFullPath(winterWallpaper), StringComparison.OrdinalIgnoreCase) &&
-                            !string.Equals(Path.GetFullPath(sourceToBackup), Path.GetFullPath(ActiveBmpFile), StringComparison.OrdinalIgnoreCase))
+                        var dw = (IDesktopWallpaper)new DesktopWallpaper();
+                        originalPath = dw.GetWallpaper(null) ?? "";
+                        originalPosition = dw.GetPosition();
+                    }
+                    catch { }
+
+                    if (string.IsNullOrEmpty(originalPath))
+                    {
+                        var sb = new StringBuilder(512);
+                        if (Win32.SystemParametersInfo(Win32.SPI_GETDESKWALLPAPER, (uint)sb.Capacity, sb, 0) != 0)
                         {
-                            File.Copy(sourceToBackup, BackupBmpFile, true);
+                            originalPath = sb.ToString();
                         }
+                    }
+
+                    string style = "10";
+                    string tile = "0";
+                    try
+                    {
+                        using var key = Registry.CurrentUser.OpenSubKey(DesktopRegKey, false);
+                        if (key != null)
+                        {
+                            if (string.IsNullOrEmpty(originalPath))
+                            {
+                                originalPath = key.GetValue("Wallpaper")?.ToString() ?? "";
+                            }
+                            style = key.GetValue("WallpaperStyle")?.ToString() ?? "10";
+                            tile = key.GetValue("TileWallpaper")?.ToString() ?? "0";
+                        }
+                    }
+                    catch { }
+
+                    // Biztonsági mentés a jelenlegi háttérképről (.bmp formátumban)
+                    string transcoded = Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                        @"Microsoft\Windows\Themes\TranscodedWallpaper");
+
+                    string sourceToBackup = File.Exists(originalPath) ? originalPath
+                        : (File.Exists(transcoded) ? transcoded : "");
+
+                    if (!string.IsNullOrEmpty(sourceToBackup) && File.Exists(sourceToBackup))
+                    {
+                        try
+                        {
+                            string normSource = Path.GetFullPath(sourceToBackup);
+                            if (!normSource.Contains("wallpaper.jpeg", StringComparison.OrdinalIgnoreCase) &&
+                                !normSource.Contains("wallpaper-fall.jpeg", StringComparison.OrdinalIgnoreCase) &&
+                                !normSource.Contains("season_wallpaper_active", StringComparison.OrdinalIgnoreCase) &&
+                                !normSource.Contains("winter_wallpaper_active", StringComparison.OrdinalIgnoreCase))
+                            {
+                                File.Copy(sourceToBackup, BackupBmpFile, true);
+                            }
+                        }
+                        catch { }
+                    }
+
+                    var state = new WallpaperState
+                    {
+                        BackupPath = File.Exists(BackupBmpFile) ? BackupBmpFile : null,
+                        OriginalPath = originalPath,
+                        OriginalPosition = originalPosition,
+                        WallpaperStyle = style,
+                        TileWallpaper = tile,
+                        Applied = true
+                    };
+
+                    try
+                    {
+                        File.WriteAllText(StateFile, JsonSerializer.Serialize(state));
                     }
                     catch { }
                 }
 
-                var state = new WallpaperState
-                {
-                    BackupPath = File.Exists(BackupBmpFile) ? BackupBmpFile : null,
-                    OriginalPath = originalPath,
-                    OriginalPosition = originalPosition,
-                    WallpaperStyle = style,
-                    TileWallpaper = tile,
-                    Applied = true
-                };
-
+                // 2. Beállítjuk a szezonális háttérképet (BMP konverzió Windows SPI és Shell számára)
                 try
                 {
-                    File.WriteAllText(StateFile, JsonSerializer.Serialize(state));
-                }
-                catch { }
-
-                // 2. Beállítjuk a téli háttérképet
-                // BMP konverzió (Windows SPI és Shell számára)
-                try
-                {
-                    using (var image = Image.FromFile(winterWallpaper))
+                    using (var image = Image.FromFile(wallpaperSource))
                     {
                         image.Save(ActiveBmpFile, ImageFormat.Bmp);
                     }
                 }
                 catch { }
 
-                string appliedFile = File.Exists(ActiveBmpFile) ? ActiveBmpFile : winterWallpaper;
+                string appliedFile = File.Exists(ActiveBmpFile) ? ActiveBmpFile : wallpaperSource;
 
                 // MÓDSZER A: IDesktopWallpaper COM interfész
                 try
@@ -224,6 +244,7 @@ namespace WinterTray.Native
                 catch { }
 
                 IsApplied = true;
+                _lastAppliedSeason = season;
                 return true;
             }
             catch
@@ -264,12 +285,14 @@ namespace WinterTray.Native
                     catch { }
                 }
 
-                // 2. Eredeti fájl útvonal, ha van és nem a téli háttérkép
+                // 2. Eredeti fájl útvonal, ha van és nem a szezonális háttérkép
                 if (restoreFile == null && state != null && !string.IsNullOrEmpty(state.OriginalPath) && File.Exists(state.OriginalPath))
                 {
                     string p = Path.GetFullPath(state.OriginalPath);
-                    if (!p.Contains("winter_wallpaper_active", StringComparison.OrdinalIgnoreCase) &&
-                        !p.Contains("wallpaper.jpeg", StringComparison.OrdinalIgnoreCase))
+                    if (!p.Contains("season_wallpaper_active", StringComparison.OrdinalIgnoreCase) &&
+                        !p.Contains("winter_wallpaper_active", StringComparison.OrdinalIgnoreCase) &&
+                        !p.Contains("wallpaper.jpeg", StringComparison.OrdinalIgnoreCase) &&
+                        !p.Contains("wallpaper-fall.jpeg", StringComparison.OrdinalIgnoreCase))
                     {
                         restoreFile = state.OriginalPath;
                     }
@@ -294,7 +317,6 @@ namespace WinterTray.Native
 
                 if (!string.IsNullOrEmpty(restoreFile) && File.Exists(restoreFile))
                 {
-                    // MÓDSZER A: IDesktopWallpaper COM (Windows 11 natív háttérkép és tálca-szín visszaállítás)
                     try
                     {
                         var dw = (IDesktopWallpaper)new DesktopWallpaper();
@@ -303,7 +325,6 @@ namespace WinterTray.Native
                     }
                     catch { }
 
-                    // MÓDSZER B: Win32 Registry + SystemParametersInfo
                     try
                     {
                         using var key = Registry.CurrentUser.OpenSubKey(DesktopRegKey, true);
@@ -323,10 +344,12 @@ namespace WinterTray.Native
                 {
                     if (File.Exists(StateFile)) File.Delete(StateFile);
                     if (File.Exists(ActiveBmpFile)) File.Delete(ActiveBmpFile);
+                    if (File.Exists(LegacyActiveBmp)) File.Delete(LegacyActiveBmp);
                 }
                 catch { }
 
                 IsApplied = false;
+                _lastAppliedSeason = null;
             }
             catch
             {

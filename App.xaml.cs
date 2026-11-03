@@ -16,6 +16,9 @@ namespace WinterTray
         private Settings? _settings;
         private SnowOverlayWindow? _overlay;
         private SettingsWindow? _settingsWindow;
+        private ToolStripMenuItem? _titleItem;
+        private ToolStripMenuItem? _seasonMenuItem;
+        private ToolStripMenuItem? _clearMenuItem;
         private ToolStripMenuItem? _pauseMenuItem;
         private ToolStripMenuItem? _autoStartMenuItem;
         private bool _selfTest;
@@ -63,9 +66,9 @@ namespace WinterTray
             }
 
             _settings = Settings.Load();
-            if (_settings.UseWinterWallpaper)
+            if (_settings.UseSeasonalWallpaper)
             {
-                WallpaperManager.ApplyWinterWallpaper();
+                WallpaperManager.ApplyWallpaper(_settings.Season);
             }
             AppDomain.CurrentDomain.ProcessExit += (s, ev) => WallpaperManager.RestoreOriginalWallpaper();
 
@@ -79,12 +82,13 @@ namespace WinterTray
         {
             var menu = new ContextMenuStrip();
 
-            var titleItem = new ToolStripMenuItem("❄ WinterTray") { Enabled = false };
+            _titleItem = new ToolStripMenuItem("❄ WinterTray") { Enabled = false };
+            _seasonMenuItem = new ToolStripMenuItem("Váltás őszi módra 🍂", null, (s, e) => ToggleSeason());
             var settingsItem = new ToolStripMenuItem("Beállítások...", null, (s, e) => OpenSettings());
             settingsItem.Font = new Font(settingsItem.Font, System.Drawing.FontStyle.Bold);
 
             _pauseMenuItem = new ToolStripMenuItem("Szüneteltetés", null, (s, e) => TogglePause());
-            var clearSnowItem = new ToolStripMenuItem("Hó letakarítása", null, (s, e) => _overlay?.ClearSnow());
+            _clearMenuItem = new ToolStripMenuItem("Hó letakarítása", null, (s, e) => _overlay?.ClearSnow());
 
             _autoStartMenuItem = new ToolStripMenuItem("Indulás a Windowszal", null, (s, e) => ToggleAutoStart())
             {
@@ -93,11 +97,12 @@ namespace WinterTray
 
             var exitItem = new ToolStripMenuItem("Kilépés", null, (s, e) => ExitApp());
 
-            menu.Items.Add(titleItem);
+            menu.Items.Add(_titleItem);
+            menu.Items.Add(_seasonMenuItem);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(settingsItem);
             menu.Items.Add(_pauseMenuItem);
-            menu.Items.Add(clearSnowItem);
+            menu.Items.Add(_clearMenuItem);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(_autoStartMenuItem);
             menu.Items.Add(new ToolStripSeparator());
@@ -118,10 +123,45 @@ namespace WinterTray
             {
                 Icon = appIcon,
                 ContextMenuStrip = menu,
-                Text = "WinterTray - Téli hóesés",
+                Text = "WinterTray",
                 Visible = true
             };
             _trayIcon.DoubleClick += (s, e) => OpenSettings();
+
+            UpdateTrayState();
+        }
+
+        public void UpdateTrayState()
+        {
+            if (_settings == null || _trayIcon == null) return;
+
+            bool isAutumn = _settings.Season == Engine.AppSeason.Autumn;
+            if (_titleItem != null)
+                _titleItem.Text = isAutumn ? "🍂 WinterTray (Ősz)" : "❄ WinterTray (Tél)";
+            if (_seasonMenuItem != null)
+                _seasonMenuItem.Text = isAutumn ? "Váltás téli módra ❄" : "Váltás őszi módra 🍂";
+            if (_clearMenuItem != null)
+                _clearMenuItem.Text = isAutumn ? "Levelek lesöprése" : "Hó letakarítása";
+
+            _trayIcon.Text = isAutumn ? "WinterTray - Őszi falevelek" : "WinterTray - Téli hóesés";
+        }
+
+        private void ToggleSeason()
+        {
+            if (_settings == null || _overlay == null) return;
+
+            _settings.Season = _settings.Season == Engine.AppSeason.Winter
+                ? Engine.AppSeason.Autumn
+                : Engine.AppSeason.Winter;
+
+            if (_settings.UseSeasonalWallpaper)
+            {
+                WallpaperManager.ApplyWallpaper(_settings.Season);
+            }
+
+            _settings.Save();
+            _overlay.Reconfigure();
+            UpdateTrayState();
         }
 
         private void OpenSettings()
@@ -130,11 +170,12 @@ namespace WinterTray
 
             if (_settingsWindow == null || !_settingsWindow.IsLoaded)
             {
-                _settingsWindow = new SettingsWindow(_settings, _overlay);
+                _settingsWindow = new SettingsWindow(_settings, _overlay, () => UpdateTrayState());
                 _settingsWindow.Closed += (s, e) =>
                 {
                     _settingsWindow = null;
                     if (_autoStartMenuItem != null) _autoStartMenuItem.Checked = _settings.StartWithWindows;
+                    UpdateTrayState();
                 };
                 _settingsWindow.Show();
             }

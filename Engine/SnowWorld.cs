@@ -46,6 +46,9 @@ namespace WinterTray.Engine
         private readonly List<WaterDroplet> _droplets = new(32);
         private double _dripAcc;
 
+        private readonly LeafSimulation _leafSim;
+        private AppSeason _lastSeason;
+
         private double _time;
         private double _sweepSpawnAcc;
         private (double min, double max, int style, double speed) _lastShape;
@@ -56,6 +59,8 @@ namespace WinterTray.Engine
         public SnowWorld(Settings settings)
         {
             _s = settings;
+            _leafSim = new LeafSimulation(settings);
+            _lastSeason = settings.Season;
             SnowSprites.Init();
 
             var fill = new LinearGradientBrush(
@@ -123,10 +128,26 @@ namespace WinterTray.Engine
             Width = width;
             Height = height;
             ResetFlakes();
+            _leafSim.Resize(width, height);
         }
 
         public void Reconfigure()
         {
+            if (_s.Season != _lastSeason)
+            {
+                _lastSeason = _s.Season;
+                if (_s.Season == AppSeason.Autumn)
+                {
+                    _leafSim.ResetLeaves();
+                }
+                else
+                {
+                    ResetFlakes();
+                }
+            }
+
+            _leafSim.Reconfigure();
+
             var shape = (_s.FlakeSizeMin, _s.FlakeSizeMax, _s.FlakeStyle, _s.FallSpeed);
             if (shape != _lastShape)
             {
@@ -145,10 +166,17 @@ namespace WinterTray.Engine
             for (int i = 0; i < _s.FlakeCount; i++) _flakes.Add(NewFlake(true));
         }
 
-        /// <summary>"Hó letakarítása": minden halom lezúdul.</summary>
+        /// <summary>"Letakarítás": minden halom lezúdul télen, levelek lerepülnek ősszel.</summary>
         public void ClearAll()
         {
-            foreach (var bank in _bankList) Avalanche(bank, 0, 0);
+            if (_s.Season == AppSeason.Autumn)
+            {
+                _leafSim.ClearAll();
+            }
+            else
+            {
+                foreach (var bank in _bankList) Avalanche(bank, 0, 0);
+            }
         }
 
         // ------------------------------------------------------------------ ablakok
@@ -333,6 +361,11 @@ namespace WinterTray.Engine
         /// </summary>
         public void OnWindowChanged(IntPtr hwnd, Rect oldRect, Rect? newRect, double dt)
         {
+            if (!newRect.HasValue)
+            {
+                _leafSim.OnWindowClosed(hwnd, oldRect);
+            }
+
             if (!_banks.TryGetValue(hwnd, out var bank)) return;
 
             // 1. ESET: Az ablak bezárult vagy letálcázódott
@@ -368,6 +401,7 @@ namespace WinterTray.Engine
             bank.Vx = bank.Vx * 0.35 + vx * 0.65;
             bank.Vy = bank.Vy * 0.35 + vy * 0.65;
             double speed = Math.Sqrt(vx * vx + vy * vy);
+            _leafSim.OnWindowMoved(hwnd, oldRect, r, vx, vy);
 
             double ax = (vx - bank.PrevVx) / safeDt;
             double ay = (vy - bank.PrevVy) / safeDt;
@@ -550,7 +584,13 @@ namespace WinterTray.Engine
 
             UpdateWindowsClearance();
 
-            double maxH = _s.MaxSnowHeight;
+            if (_s.Season == AppSeason.Autumn)
+            {
+                _leafSim.Update(dt, cursor, _windows, IsCoveredByHigher, IsInsideAnyWindow);
+                return;
+            }
+
+            double maxH = _s.LimitSnowHeight ? _s.MaxSnowHeight : 9999.0;
             double melt = _s.MeltRateSeconds > 0 ? maxH / _s.MeltRateSeconds : 0;
             for (int i = 0; i < _bankList.Count; i++) _bankList[i].Tick(dt, maxH, melt);
 
@@ -653,6 +693,7 @@ namespace WinterTray.Engine
         /// </summary>
         public void HandleMouseClick(double screenX, double screenY)
         {
+            if (_s.Season == AppSeason.Autumn) return;
             if (!_s.ShowIcicles) return;
 
             for (int b = 0; b < _bankList.Count; b++)
@@ -814,7 +855,8 @@ namespace WinterTray.Engine
 
                 double effSize = Math.Min(f.Size, 4.2);
                 double volume = effSize * effSize * 2.2 * _s.AccumulationSpeed;
-                bank.Add(f.X, volume, _s.MaxSnowHeight);
+                double maxH = _s.LimitSnowHeight ? _s.MaxSnowHeight : 9999.0;
+                bank.Add(f.X, volume, maxH);
 
                 if (_particleCount < MaxBudget())
                 {
@@ -1112,6 +1154,12 @@ namespace WinterTray.Engine
 
         public void Render(DrawingContext dc)
         {
+            if (_s.Season == AppSeason.Autumn)
+            {
+                _leafSim.Render(dc, _windows, IsInsideAnyWindow);
+                return;
+            }
+
             // 1. Hóhalmok és jégcsapok az ablakokon:
             // Z-sorrendben hátulról előre rajzolva, és a feljebb lévő (előtéri) ablakok területét kitakarva (PushClip)!
             // Így a háttérben lévő ablak hava sosem lóg át az előtérben lévő ablakra!
@@ -1123,7 +1171,7 @@ namespace WinterTray.Engine
                 int wIndex = _windows.FindIndex(w => w.HWnd == bank.HWnd);
                 Geometry? clipGeom = null;
 
-                double maxH = Math.Max(20.0, _s.MaxSnowHeight);
+                double maxH = Math.Max(20.0, _s.LimitSnowHeight ? _s.MaxSnowHeight : 200.0);
                 Rect bankBounds = new Rect(
                     bank.Left - 8.0,
                     bank.Top - maxH - 8.0,
