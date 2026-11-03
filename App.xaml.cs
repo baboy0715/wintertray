@@ -11,6 +11,8 @@ namespace WinterTray
 {
     public partial class App : Application
     {
+        public const string FeedbackUrl = "https://qform.hu/form/wintertray-visszajelzes-funkcioertekeles-es-hibabejelentes-2";
+
         private static Mutex? _mutex;
         private NotifyIcon? _trayIcon;
         private Settings? _settings;
@@ -87,6 +89,8 @@ namespace WinterTray
             var settingsItem = new ToolStripMenuItem("Beállítások...", null, (s, e) => OpenSettings());
             settingsItem.Font = new Font(settingsItem.Font, System.Drawing.FontStyle.Bold);
 
+            var feedbackItem = new ToolStripMenuItem("Értékelés és hibabejelentés... 💬", null, (s, e) => OpenFeedbackUrl());
+
             _pauseMenuItem = new ToolStripMenuItem("Szüneteltetés", null, (s, e) => TogglePause());
             _clearMenuItem = new ToolStripMenuItem("Hó letakarítása", null, (s, e) => _overlay?.ClearSnow());
 
@@ -101,6 +105,7 @@ namespace WinterTray
             menu.Items.Add(_seasonMenuItem);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(settingsItem);
+            menu.Items.Add(feedbackItem);
             menu.Items.Add(_pauseMenuItem);
             menu.Items.Add(_clearMenuItem);
             menu.Items.Add(new ToolStripSeparator());
@@ -183,6 +188,19 @@ namespace WinterTray
             {
                 _settingsWindow.Activate();
             }
+        }
+
+        public static void OpenFeedbackUrl()
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = FeedbackUrl,
+                    UseShellExecute = true
+                });
+            }
+            catch { }
         }
 
         private void TogglePause()

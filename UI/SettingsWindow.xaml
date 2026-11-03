@@ -102,6 +102,8 @@
 
         <!-- FEJLÉC -->
         <DockPanel Grid.Row="0" Margin="0,0,0,16">
+            <Button DockPanel.Dock="Right" Content="💬 Értékelés &amp; Hibák" Style="{StaticResource StandardButton}" 
+                    VerticalAlignment="Center" Click="OnFeedbackClicked" Cursor="Hand" ToolTip="Kérdőív és hibabejelentő megnyitása" />
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Name="TxtHeaderIcon" Text="❄" FontSize="26" Foreground="#60CDFF" VerticalAlignment="Center" Margin="0,0,10,0" />
                 <StackPanel VerticalAlignment="Center">

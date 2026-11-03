@@ -300,6 +300,11 @@ namespace WinterTray.UI
             _overlay.ClearSnow();
         }
 
+        private void OnFeedbackClicked(object sender, RoutedEventArgs e)
+        {
+            App.OpenFeedbackUrl();
+        }
+
         private void OnResetDefaultsClicked(object sender, RoutedEventArgs e)
         {
             var def = new Settings();
