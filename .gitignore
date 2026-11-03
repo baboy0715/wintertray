@@ -5,16 +5,24 @@ obj/
 *.suo
 *.userosscache
 *.sln.docstates
+*.old
+
+# Build és telepítő kimeneti mappák
+App_Release/
+publish/
+Output/
+SingleFileRelease/
+
+# Telepítő és csomag mappák (ne kerüljenek ki gitre)
+Installer/
+Windows11_OEM_Package/
+MSIX_Package/
+*.msix
+**/*.msix
+
+# Ideiglenes vagy gyökérbe generált binárisok
 WinterTray.dll
 WinterTray.exe
 WinterTray.pdb
 WinterTray.deps.json
 WinterTray.runtimeconfig.json
-*.old
-SingleFileRelease/
-App_Release/
-publish/
-*.msix
-**/*.msix
-MSIX_Package/PackageRoot/
-MSIX_Package/Output/

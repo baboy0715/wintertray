@@ -78,24 +78,29 @@ A beállítások automatikusan mentésre kerülnek a `%APPDATA%\WinterTray\confi
 
 ---
 
+## 📦 Telepítő készítése (Inno Setup)
+
+A projekt egy dedikált **`Installer`** mappát tartalmaz, amelyben megtalálható az Inno Setup telepítő szkript és a hozzá tartozó segédfájlok:
+- **`Installer\WinterTray.iss`**: Az Inno Setup 7 telepítő definíció.
+- **`Installer\Build-Installer.cmd`**: Egykattintásos fordító parancsfájl, amely automatikusan lefordítja a Release buildet (`App_Release`), majd létrehozza a végleges telepítőt:
+  - Kimeneti fájl: **`Output\WinterTray-Setup-v1.1.exe`**
+- **`Installer\install.cmd`**: Csendes telepítő helyi használathoz (`/silent` kapcsolóval).
+- **`Installer\uninstall.cmd`**: Tiszta eltávolító szkript.
+
+---
+
 ## 💿 Beépítés a Windows 11 telepítőfájlba (ISO / USB telepítő)
 
-A projekt mappájában előre elkészítettük a **`Windows11_OEM_Package`** mappát, amely a Microsoft hivatalos `$OEM$` telepítői szabványát használja. Ez a legmegbízhatóbb módszer, mert **semmilyen külső módosító segédprogramot nem igényel**, és minden hivatalos Windows 11 telepítővel natívan működik!
+A WinterTray könnyen integrálható a Windows 11 telepítő médiába:
 
-### 1. Módszer: Közvetlen másolás Windows 11 USB telepítőre (Ajánlott)
+### 1. Módszer: USB telepítőre másolás ($OEM$ szabvány)
 
 1. Készíts egy bootolható Windows 11 telepítő pendrive-ot a szokásos módon (pl. Rufus vagy a Microsoft hivatalos Media Creation Tool használatával).
-2. Nyisd meg a pendrive gyökerét a Fájlkezelőben (pl. `E:\`).
-3. Nyisd meg a pendrive-on lévő `sources` mappát (`E:\sources\`).
-4. Másold be a projekt **`Windows11_OEM_Package\sources\`** mappájának tartalmát a pendrive **`sources`** mappájába!
-   - A pendrive-on a következő struktúra fog létrejönni:
-     ```text
-     E:\sources\$OEM$\$1\Program Files\WinterTray\
-     E:\sources\$OEM$\$$\Setup\Scripts\SetupComplete.cmd
-     ```
-5. **Kész!** 
-   - A Windows 11 telepítésekor a Windows Setup automatikusan átmásolja a WinterTray mappát a frissen telepített rendszer `C:\Program Files\WinterTray\` könyvtárába.
-   - A telepítés legvégén (mielőtt a felhasználó először bejelentkezne) lefut a `SetupComplete.cmd`, amely bejegyzi a registrybe az automatikus indítást és létrehozza a Start menü parancsikont.
+2. Nyisd meg a pendrive gyökerében lévő `sources` mappát (`E:\sources\`).
+3. Hozd létre a következő mappastruktúrát, és másold be az `App_Release` tartalmát:
+   - `E:\sources\$OEM$\$1\Program Files\WinterTray\` (ide másold az `App_Release` fájljait és az `Installer\install.cmd`-t)
+   - `E:\sources\$OEM$\$$\Setup\Scripts\SetupComplete.cmd` (ide másold az `Installer\SetupComplete.cmd` fájlt)
+4. **Kész!** A Windows 11 telepítése után a rendszer automatikusan bemásolja a programot és beállítja az automatikus indítást.
 
 ---
 
@@ -104,9 +109,8 @@ A projekt mappájában előre elkészítettük a **`Windows11_OEM_Package`** map
 Ha NTLite-tal készítesz testreszabott / optimalizált Windows 11 ISO-t:
 1. Töltsd be a Windows 11 képmást az NTLite-ba.
 2. Lépj a **Post-Setup** (Telepítés utáni műveletek) fülre.
-3. Kattints a **Hozzáadás (Add) -> Fájl** gombra, és válaszd ki a `publish\WinterTray.exe`-t vagy az `Installer\install.cmd`-t `/silent` paraméterrel.
-4. Vagy az NTLite ISO mappa fa nézetében egyszerűen dobd be a `$OEM$` mappát a `sources` alá.
-5. Generáld le az új ISO fájlt.
+3. Kattints a **Hozzáadás (Add) -> Fájl** gombra, és válaszd ki az `App_Release\WinterTray.exe`-t vagy az `Installer\install.cmd`-t `/silent` paraméterrel.
+4. Generáld le az új ISO fájlt.
 
 ---
 
