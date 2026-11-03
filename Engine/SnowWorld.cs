@@ -200,10 +200,21 @@ namespace WinterTray.Engine
                         Avalanche(bank, 0, 0);
                         PopulateExposedArea(new Rect(bank.Left, bank.Top, bank.Width, Math.Min(400, Height - bank.Top)));
                         _banks.Remove(key);
-                        _bankList.Remove(bank);
                     }
                 }
             }
+
+            // A _bankList sorrendje mindig pontosan kövesse a Windows valódi Z-sorrendjét (elölről hátrafelé)
+            _bankList.Clear();
+            foreach (var w in _windows)
+            {
+                if (_banks.TryGetValue(w.HWnd, out var b))
+                {
+                    _bankList.Add(b);
+                }
+            }
+
+            UpdateWindowsClearance();
         }
 
         /// <summary>
@@ -243,9 +254,29 @@ namespace WinterTray.Engine
                     bank.LastPxWidth = px.Width;
                     bank.LastPxHeight = px.Height;
 
+                    // Frissítjük a TrackedWindow téglalapját is valós időben (120 FPS szinkron Z-kitakaráshoz)
+                    for (int wIdx = 0; wIdx < _windows.Count; wIdx++)
+                    {
+                        if (_windows[wIdx].HWnd == bank.HWnd)
+                        {
+                            _windows[wIdx] = new TrackedWindow
+                            {
+                                HWnd = bank.HWnd,
+                                Title = _windows[wIdx].Title,
+                                ClassName = _windows[wIdx].ClassName,
+                                Rect = newRect,
+                                PxRect = px,
+                                IsTaskbar = _windows[wIdx].IsTaskbar
+                            };
+                            break;
+                        }
+                    }
+
                     OnWindowChanged(bank.HWnd, oldRect, newRect, dt);
                 }
             }
+
+            UpdateWindowsClearance();
         }
 
         /// <summary>
@@ -448,8 +479,6 @@ namespace WinterTray.Engine
             for (int i = 0; i < _windows.Count; i++)
             {
                 var w = _windows[i];
-                if (w.IsTaskbar) continue;
-                if (string.IsNullOrWhiteSpace(w.Title) && !w.ClassName.StartsWith("Chrome_WidgetWin") && w.ClassName != "ApplicationFrameWindow") continue;
                 if (w.Rect.Contains(x, y)) return true;
             }
             return false;
@@ -461,8 +490,6 @@ namespace WinterTray.Engine
             {
                 var w = _windows[i];
                 if (w.HWnd == hwnd) break; // Z-sorrendben a saját ablakunkig nézzük a feljebb lévőket
-                if (w.IsTaskbar) continue;
-                if (string.IsNullOrWhiteSpace(w.Title) && !w.ClassName.StartsWith("Chrome_WidgetWin") && w.ClassName != "ApplicationFrameWindow") continue;
                 if (w.Rect.Contains(x, y)) return true;
             }
             return false;
@@ -470,7 +497,49 @@ namespace WinterTray.Engine
 
         private bool IsCoveredByOther(double x, double y, IntPtr except)
         {
-            return IsCoveredByHigher(x, y, except);
+            for (int i = 0; i < _windows.Count; i++)
+            {
+                var w = _windows[i];
+                if (w.HWnd == except) continue;
+                if (w.Rect.Contains(x, y)) return true;
+            }
+            return false;
+        }
+
+        public void UpdateWindowsClearance()
+        {
+            if (_bankList.Count == 0) return;
+
+            for (int i = 0; i < _bankList.Count; i++)
+            {
+                var bank = _bankList[i];
+                if (bank.IsTaskbar)
+                {
+                    bank.BottomClearance = 0;
+                    continue;
+                }
+
+                double clearance = Math.Max(0.0, Height - bank.Bottom);
+
+                for (int w = 0; w < _windows.Count; w++)
+                {
+                    var win = _windows[w];
+                    if (win.IsTaskbar)
+                    {
+                        // Ha a tálca horizontálisan átfedi az ablakot
+                        if (bank.Left < win.Rect.Right && (bank.Left + bank.Width) > win.Rect.Left)
+                        {
+                            double dist = win.Rect.Top - bank.Bottom;
+                            if (dist < clearance)
+                            {
+                                clearance = Math.Max(0.0, dist);
+                            }
+                        }
+                    }
+                }
+
+                bank.BottomClearance = clearance;
+            }
         }
 
         // ------------------------------------------------------------------ frissítés
@@ -478,6 +547,8 @@ namespace WinterTray.Engine
         public void Update(double dt, CursorState cursor)
         {
             _time += dt;
+
+            UpdateWindowsClearance();
 
             double maxH = _s.MaxSnowHeight;
             double melt = _s.MeltRateSeconds > 0 ? maxH / _s.MeltRateSeconds : 0;
@@ -683,7 +754,15 @@ namespace WinterTray.Engine
                 f.Dvy *= damp;
                 f.Rot += f.RotSpeed * dt;
 
-                if (_s.AccumulateOnWindows && _bankList.Count > 0 && TryLand(f))
+                if (_s.AccumulateOnWindows && _bankList.Count > 0 && TryLand(f, cur))
+                {
+                    _flakes[i] = NewFlake(false);
+                    continue;
+                }
+
+                // Ha a hópehely egy ablak területére ért (ahol nem is rajzolódik ki),
+                // ne utazzon láthatatlanul az ablak mögött/belsejében, hogy aztán egy lejjebb lévő ablakra essen!
+                if (f.Y > 0 && IsInsideAnyWindow(f.X, f.Y))
                 {
                     _flakes[i] = NewFlake(false);
                     continue;
@@ -696,8 +775,21 @@ namespace WinterTray.Engine
             }
         }
 
-        private bool TryLand(SnowFlake f)
+        private bool TryLand(SnowFlake f, CursorState cur)
         {
+            // Előtéri életlen bokeh effekt és egérszél által elfújt pelyhek nem építenek hóréteget
+            if (f.Kind == FlakeKind.Bokeh) return false;
+            if (f.Dvx * f.Dvx + f.Dvy * f.Dvy > 225.0) return false;
+
+            // Ha a felhasználó épp az egérrel söpör a pehely közvetlen helyén, ne rakódjon le a hó a kurzor alatt
+            if (cur.Valid && cur.Speed >= 15.0)
+            {
+                double cdx = f.X - cur.X;
+                double cdy = f.Y - cur.Y;
+                const double sweepR = 13.0;
+                if (cdx * cdx + cdy * cdy <= sweepR * sweepR) return false;
+            }
+
             double foot = f.Y + f.Size * 0.25;
             double prevFoot = f.PrevY + f.Size * 0.25;
 
@@ -706,13 +798,22 @@ namespace WinterTray.Engine
                 var bank = _bankList[b];
                 double activeLeft = bank.Left + SnowBank.EdgeMargin;
                 double activeRight = bank.Left + bank.Width - SnowBank.EdgeMargin;
-                if (f.X < activeLeft + 1 || f.X > activeRight - 1) continue;
+                if (f.X < activeLeft + 2 || f.X > activeRight - 2) continue;
 
                 double surface = bank.Top - bank.HeightAt(f.X);
-                if (foot < surface || prevFoot > surface + 3 || foot > bank.Top + 24) continue;
-                if (IsCoveredByOther(f.X, bank.Top - 3, bank.HWnd)) continue;
+                if (foot < surface || prevFoot > surface + 3 || foot > bank.Top + 16) continue;
 
-                double volume = f.Size * f.Size * 4.0 * _s.AccumulationSpeed;
+                // Csak akkor rakódhat le a hó az ablak tetejére, ha az ablak pereme feletti rész
+                // valóban szabad asztal-háttér (nincs felette/rajta semmilyen másik ablak, Z-sorrendtől függetlenül sem!)
+                if (IsCoveredByOther(f.X, bank.Top - 4, bank.HWnd) ||
+                    IsCoveredByOther(f.X, surface - 2, bank.HWnd) ||
+                    IsCoveredByHigher(f.X, bank.Top + 2, bank.HWnd))
+                {
+                    continue;
+                }
+
+                double effSize = Math.Min(f.Size, 4.2);
+                double volume = effSize * effSize * 2.2 * _s.AccumulationSpeed;
                 bank.Add(f.X, volume, _s.MaxSnowHeight);
 
                 if (_particleCount < MaxBudget())
@@ -734,72 +835,103 @@ namespace WinterTray.Engine
 
         // ------------------------------------------------------------------ egérrel söprés
 
+        private static double DistToSegment(double px, double py, double x0, double y0, double x1, double y1, out double closestX, out double closestY)
+        {
+            double vx = x1 - x0;
+            double vy = y1 - y0;
+            double lenSq = vx * vx + vy * vy;
+            if (lenSq < 1e-4)
+            {
+                closestX = x1;
+                closestY = y1;
+                double dx0 = px - x1;
+                double dy0 = py - y1;
+                return Math.Sqrt(dx0 * dx0 + dy0 * dy0);
+            }
+            double t = Math.Clamp(((px - x0) * vx + (py - y0) * vy) / lenSq, 0.0, 1.0);
+            closestX = x0 + t * vx;
+            closestY = y0 + t * vy;
+            double dx = px - closestX;
+            double dy = py - closestY;
+            return Math.Sqrt(dx * dx + dy * dy);
+        }
+
         private void Sweep(CursorState cur, double dt)
         {
-            if (!cur.Valid || cur.Speed < 70) return;
+            if (!cur.Valid || cur.Speed < 15) return;
 
             double speed = cur.Speed;
-            double R = 26 + Math.Min(speed * 0.045, 60);
+            // Szigorúan csak maga az egérkurzor söpörje le a havat (ne a kurzor távoli környezete!)
+            double R = 9.0 + Math.Min(speed * 0.004, 4.0);
             int emitted = 0;
             int budget = MaxBudget();
+
+            double segMinX = Math.Min(cur.PrevX, cur.X);
+            double segMaxX = Math.Max(cur.PrevX, cur.X);
+            double segMinY = Math.Min(cur.PrevY, cur.Y);
+            double segMaxY = Math.Max(cur.PrevY, cur.Y);
 
             for (int b = 0; b < _bankList.Count; b++)
             {
                 var bank = _bankList[b];
-                if (bank.Peak < 0.8f) continue;
-                if (cur.X < bank.Left - R || cur.X > bank.Left + bank.Width + R) continue;
-                if (cur.Y < bank.Top - bank.Peak - R - 14 || cur.Y > bank.Top + 38) continue;
+                if (segMaxX < bank.Left - R - 4 || segMinX > bank.Left + bank.Width + R + 4) continue;
+                if (segMaxY < bank.Top - bank.Peak - 10 || segMinY > bank.Top + 12) continue;
 
                 double activeLeft = bank.Left + SnowBank.EdgeMargin;
-                int c0 = Math.Max(0, (int)((cur.X - R - activeLeft) / SnowBank.Step));
-                int c1 = Math.Min(bank.Count - 1, (int)((cur.X + R - activeLeft) / SnowBank.Step));
+                int c0 = Math.Max(0, (int)((segMinX - R - activeLeft) / SnowBank.Step));
+                int c1 = Math.Min(bank.Count - 1, (int)((segMaxX + R - activeLeft) / SnowBank.Step));
                 bool changed = false;
 
                 for (int i = c0; i <= c1; i++)
                 {
+                    float h = Math.Max(bank.H[i], bank.T[i]);
+                    if (h <= 0.005f) continue;
+
                     double px = activeLeft + i * SnowBank.Step;
-                    double dx = Math.Abs(px - cur.X);
+                    double py = bank.Top - bank.H[i] * 0.5;
+
+                    DistToSegment(px, py, cur.PrevX, cur.PrevY, cur.X, cur.Y, out double cx, out double cy);
+                    double dx = Math.Abs(px - cx);
                     if (dx > R) continue;
 
-                    float h = bank.H[i];
-                    if (h <= 0.02f) continue;
+                    // Vertikálisan is konkrétan a hóréteget kell érintenie a kurzornak
+                    if (cy < bank.Top - h - 7.0 || cy > bank.Top + 9.0) continue;
 
-                    double dy = cur.Y - (bank.Top - h * 0.5);
-                    if (Math.Abs(dy) > R * 0.9 + h * 0.5 + 14) continue;
+                    double f = 1.0 - dx / R;
+                    double frac = Math.Clamp(f * (0.65 + speed / 500.0), 0.25, 1.0);
 
-                    double f = 1 - dx / R;
-                    double frac = Math.Clamp(f * (0.22 + speed / 800.0) * 14.0 * dt, 0.05, 0.95);
+                    float prevH = bank.H[i];
+                    float removed = (float)(prevH * frac);
 
-                    float removed = (float)(h * frac);
-                    // Ha a söprés után már csak egy vékony réteg (0.9 px alatt) maradna,
-                    // teljesen letakarítjuk 0-ra, így nem marad vissza zavaró fehér vonal!
-                    if (h - removed < 0.9f || frac > 0.65)
+                    // Ha a kurzor áthaladt rajta, H[i]-t és T[i]-t is 0-ra töröljük az adott pontban
+                    if (prevH - removed < 1.0f || f > 0.30)
                     {
-                        removed = h;
+                        removed = prevH;
                         bank.H[i] = 0f;
                         bank.T[i] = 0f;
                     }
                     else
                     {
-                        bank.H[i] -= removed;
-                        bank.T[i] = Math.Max(0f, bank.T[i] * (float)(1 - frac));
+                        float newH = Math.Max(0f, prevH - removed);
+                        bank.H[i] = newH;
+                        bank.T[i] = newH;
                     }
                     changed = true;
 
-                    if (budget > 0)
+                    if (budget > 0 && removed > 0.05f)
                     {
                         _sweepSpawnAcc += removed * SnowBank.Step / 10.0;
                         while (_sweepSpawnAcc >= 1 && emitted < 8 && _particleCount < budget)
                         {
                             _sweepSpawnAcc -= 1;
                             emitted++;
-                            double dir = px >= cur.X ? 1 : -1;
+                            double dir = cur.Vx != 0 ? Math.Sign(cur.Vx) : (px >= cx ? 1 : -1);
                             bool isClump = _rnd.NextDouble() < 0.28; // 72% finom porhó a valósághű porzó hatáshoz
                             SpawnParticle(new Particle
                             {
                                 Kind = isClump ? ParticleKind.Clump : ParticleKind.Dust,
                                 X = px + (_rnd.NextDouble() - 0.5) * 5,
-                                Y = bank.Top - h * _rnd.NextDouble(),
+                                Y = bank.Top - prevH * _rnd.NextDouble(),
                                 Vx = cur.Vx * 0.35 + dir * (30 + _rnd.NextDouble() * 100),
                                 Vy = cur.Vy * 0.2 - 35 - _rnd.NextDouble() * 120,
                                 Size = isClump ? 2.2 + _rnd.NextDouble() * 2.5 : 1.4 + _rnd.NextDouble() * 2.2,
@@ -812,7 +944,16 @@ namespace WinterTray.Engine
                     }
                 }
 
-                if (changed) bank.MarkDirty();
+                if (changed)
+                {
+                    float newPeak = 0;
+                    for (int i = 0; i < bank.H.Length; i++)
+                    {
+                        if (bank.H[i] > newPeak) newPeak = bank.H[i];
+                    }
+                    bank.Peak = newPeak;
+                    bank.MarkDirty();
+                }
             }
             if (_sweepSpawnAcc > 20) _sweepSpawnAcc = 0;
         }
@@ -971,13 +1112,79 @@ namespace WinterTray.Engine
 
         public void Render(DrawingContext dc)
         {
-            // 1. Hóhalmok és jégcsapok az ablakokon
-            for (int i = 0; i < _bankList.Count; i++)
+            // 1. Hóhalmok és jégcsapok az ablakokon:
+            // Z-sorrendben hátulról előre rajzolva, és a feljebb lévő (előtéri) ablakok területét kitakarva (PushClip)!
+            // Így a háttérben lévő ablak hava sosem lóg át az előtérben lévő ablakra!
+            for (int i = _bankList.Count - 1; i >= 0; i--)
             {
-                _bankList[i].Render(
+                var bank = _bankList[i];
+                if (bank.HWnd == IntPtr.Zero) continue;
+
+                int wIndex = _windows.FindIndex(w => w.HWnd == bank.HWnd);
+                Geometry? clipGeom = null;
+
+                double maxH = Math.Max(20.0, _s.MaxSnowHeight);
+                Rect bankBounds = new Rect(
+                    bank.Left - 8.0,
+                    bank.Top - maxH - 8.0,
+                    bank.Width + 16.0,
+                    bank.Height + maxH + 60.0);
+
+                // 1. A normál alkalmazásablakok díszítését a tálca MINDIG kitakarja (akár aktív előtérben lévő ablak, akár háttérbeli),
+                // hiszen a Windowsban a tálca mindig az alkalmazások felett ül (Z-sorrendben elöl van)!
+                if (!bank.IsTaskbar)
+                {
+                    for (int t = 0; t < _windows.Count; t++)
+                    {
+                        if (_windows[t].IsTaskbar)
+                        {
+                            Rect tbRect = _windows[t].Rect;
+                            if (tbRect.IntersectsWith(bankBounds))
+                            {
+                                clipGeom ??= new RectangleGeometry(bankBounds);
+                                clipGeom = Geometry.Combine(clipGeom, new RectangleGeometry(tbRect), GeometryCombineMode.Exclude, null);
+                            }
+                        }
+                    }
+                }
+
+                // 2. Előtéri (Z-sorrendben magasabb) egyéb ablakok általi kitakarás
+                if (wIndex > 0)
+                {
+                    for (int j = 0; j < wIndex; j++)
+                    {
+                        var higher = _windows[j];
+                        if (higher.HWnd == bank.HWnd || higher.IsTaskbar) continue;
+
+                        Rect higherArea = new Rect(
+                            higher.Rect.Left,
+                            higher.Rect.Top,
+                            higher.Rect.Width,
+                            higher.Rect.Height);
+
+                        if (higherArea.IntersectsWith(bankBounds))
+                        {
+                            clipGeom ??= new RectangleGeometry(bankBounds);
+                            clipGeom = Geometry.Combine(clipGeom, new RectangleGeometry(higherArea), GeometryCombineMode.Exclude, null);
+                        }
+                    }
+                }
+
+                if (clipGeom != null)
+                {
+                    if (clipGeom.IsEmpty()) continue;
+                    dc.PushClip(clipGeom);
+                }
+
+                bank.Render(
                     dc, _pileFill, _pileEdge, _pileHalo,
                     _icicleFill, _icicleHighlight, _icicleHalo,
                     _s.ShowIcicles, _s.IcicleDensity, Height);
+
+                if (clipGeom != null)
+                {
+                    dc.Pop();
+                }
             }
 
             // 2. Részecskék (lavina és söprés) - közvetlen sprite kirajzolás, NULLA PushOpacity / PushTransform
@@ -985,7 +1192,7 @@ namespace WinterTray.Engine
             for (int i = 0; i < _particleCount; i++)
             {
                 ref readonly var p = ref _particles[i];
-                if (p.Y >= Height - 44) continue;
+                if (p.Y >= Height - 44 || IsInsideAnyWindow(p.X, p.Y)) continue;
 
                 double t = p.Age / p.Life;
                 switch (p.Kind)

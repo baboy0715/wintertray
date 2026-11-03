@@ -22,7 +22,8 @@ namespace WinterTray.Native
         private static readonly HashSet<string> IgnoredClasses = new(StringComparer.OrdinalIgnoreCase)
         {
             "Progman", "WorkerW", "Windows.UI.Core.CoreWindow",
-            "XamlExplorerHostIslandWindow", "DesktopWindowXamlSource", "Shell_LightDismissOverlay"
+            "XamlExplorerHostIslandWindow", "DesktopWindowXamlSource", "Shell_LightDismissOverlay",
+            "ScreenClippingHost", "ScreenClippingHostWindow", "SnippingTool"
         };
 
         private readonly IntPtr _overlay;
@@ -69,7 +70,7 @@ namespace WinterTray.Native
                 }
 
                 if (!Win32.GetAccurateWindowRect(hWnd, out var px)) return true;
-                if (px.Width < 100 || px.Height < 40) return true;
+                if (taskbar ? (px.Width < 100 || px.Height < 20) : (px.Width < 100 || px.Height < 40)) return true;
 
                 _sb.Clear();
                 Win32.GetWindowText(hWnd, _sb, _sb.Capacity);

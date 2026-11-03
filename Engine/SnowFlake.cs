@@ -46,6 +46,7 @@ namespace WinterTray.Engine
     {
         public bool Valid;
         public double X, Y;
+        public double PrevX, PrevY;
         public double Vx, Vy;
         public double Speed;
     }

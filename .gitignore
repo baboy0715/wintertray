@@ -10,4 +10,7 @@ WinterTray.exe
 WinterTray.pdb
 WinterTray.deps.json
 WinterTray.runtimeconfig.json
+*.old
+SingleFileRelease/
+
 

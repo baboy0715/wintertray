@@ -99,9 +99,8 @@ namespace WinterTray.UI
             _tracker = new WindowTracker(_hwnd, _toDip);
             _tracker.WindowChanged += _world.OnWindowChanged;
 
-            // DWM szintű védelem képernyőkép és képernyőmegosztás ellen:
-            // A Windows DWM közvetlenül kizárja az overlayt minden képernyőmentésből (Snipping Tool, PrintScreen, stb.)
-            Win32.SetWindowDisplayAffinity(_hwnd, Win32.WDA_EXCLUDEFROMCAPTURE);
+            // A hóréteg és hóesés képernyőképeken (Snipping Tool, PrintScreen, stb.) tisztán megjelenik
+            Win32.SetWindowDisplayAffinity(_hwnd, Win32.WDA_NONE);
 
             ZOrder.Enforce(_hwnd);
 
@@ -159,13 +158,6 @@ namespace WinterTray.UI
                 ZOrder.Enforce(_hwnd);
             }
 
-            // Képmetsző / Snipping Tool (Win+Shift+S) vagy képernyőkép-készítő közben azonnal elrejtjük az overlayt,
-            // így a képernyőmentés tiszta marad, semmilyen hóréteg nem takarja ki a képmetsző felületét!
-            if (Win32.IsScreenCaptureActive())
-            {
-                if (Visibility != Visibility.Hidden) Visibility = Visibility.Hidden;
-                return;
-            }
 
             bool covered = _allCovered && _settings.PauseWhenCovered;
             if (_pollAccumulator >= (covered ? 0.12 : 0.033))
@@ -219,6 +211,7 @@ namespace WinterTray.UI
                 c = new Point(pt.X / dpiX, pt.Y / dpiY);
             }
 
+            Point prev = _prevCursor.X > -1e8 ? _prevCursor : c;
             if (_prevCursor.X > -1e8 && dt > 0.0001)
             {
                 double vx = (c.X - _prevCursor.X) / dt;
@@ -232,6 +225,8 @@ namespace WinterTray.UI
             state.Valid = true;
             state.X = c.X;
             state.Y = c.Y;
+            state.PrevX = prev.X;
+            state.PrevY = prev.Y;
             state.Vx = _mouseVx;
             state.Vy = _mouseVy;
             state.Speed = Math.Sqrt(_mouseVx * _mouseVx + _mouseVy * _mouseVy);

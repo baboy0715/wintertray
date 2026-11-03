@@ -32,14 +32,36 @@ namespace WinterTray.Engine
     /// </summary>
     public sealed class SnowBank
     {
-        public const double Step = 4.0;
-        public const double EdgeMargin = 2.5;    // 2.5 px: pontosan a Windows 11 kerek sarkának ívére illeszkedik, semmi sem lóg ki a levegőbe!
+        public const double Step = 2.0;
+        public const double EdgeMargin = 0.0;    // 0.0 px: a hó közvetlenül a sarkokig és a sarkokon átölelve ér
         private const float Slope = 2.6f;
+
+        public static double GetYBase(double x, double width, bool rounded = true)
+        {
+            const double overlap = 1.6; // Finom 1.6 px-es ráfekvés a fejléc felső szélére
+            if (!rounded) return overlap;
+
+            const double R = 8.0; // Windows 11 ablaklekerekítés sugara
+            if (x < R)
+            {
+                double dx = R - Math.Max(0.0, x);
+                double dy = R - Math.Sqrt(Math.Max(0.0, R * R - dx * dx));
+                return overlap + dy;
+            }
+            if (x > width - R)
+            {
+                double dx = Math.Min(width, x) - (width - R);
+                double dy = R - Math.Sqrt(Math.Max(0.0, R * R - dx * dx));
+                return overlap + dy;
+            }
+            return overlap;
+        }
 
         public IntPtr HWnd;
         public double Left, Top, Width, Height;
         public double Bottom => Top + Height;
         public bool IsTaskbar;
+        public double BottomClearance = double.MaxValue;
 
         public double Vx, Vy;
         public double PrevVx, PrevVy;
@@ -121,6 +143,11 @@ namespace WinterTray.Engine
                 Top = newTop;
                 _transform.X = newLeft;
                 _transform.Y = newTop;
+                if (BottomClearance < 38.0 && Icicles.Count > 0)
+                {
+                    Icicles.Clear();
+                    _dirty = true;
+                }
                 return;
             }
 
@@ -165,8 +192,8 @@ namespace WinterTray.Engine
                     }
                 }
 
-                // Ha az ablak magassága csökkent (alulról húzták fel), a lelógó alsó jégcsapok letörnek
-                if (newHeight < oldHeight - 4.0 && Icicles.Count > 0)
+                // Ha az ablak magassága csökkent (alulról húzták fel) vagy leért a tálcára, a lelógó alsó jégcsapok letörnek
+                if ((newHeight < oldHeight - 4.0 || BottomClearance < 38.0) && Icicles.Count > 0)
                 {
                     for (int i = 0; i < Icicles.Count; i++)
                     {
@@ -176,6 +203,10 @@ namespace WinterTray.Engine
                             ic.Shattered = true;
                             onShedOffEdge(oldLeft + ic.RelX, oldTop + oldHeight, (float)ic.Length, 0.0);
                         }
+                    }
+                    if (BottomClearance < 38.0)
+                    {
+                        Icicles.Clear();
                     }
                 }
             }
@@ -242,8 +273,8 @@ namespace WinterTray.Engine
         {
             double activeLeft = Left + EdgeMargin;
             int c = (int)Math.Round((x - activeLeft) / Step);
-            const int span = 5;
-            const double sigma = 2.4;
+            const int span = 4;
+            const double sigma = 2.0;
 
             double norm = 0;
             for (int k = -span; k <= span; k++)
@@ -278,10 +309,14 @@ namespace WinterTray.Engine
             for (int i = 0; i < n; i++)
             {
                 float h = H[i];
-                if (h < 0.4f) continue;
+                if (h < 0.4f)
+                {
+                    T[i] = h;
+                    continue;
+                }
                 float shed = (float)(h * ratio);
-                H[i] -= shed;
-                T[i] = Math.Max(0f, T[i] - shed);
+                H[i] = Math.Max(0f, h - shed);
+                T[i] = H[i];
 
                 if (shed > 0.15f && i % 2 == 0)
                 {
@@ -308,7 +343,7 @@ namespace WinterTray.Engine
                 T[i] = t;
             }
 
-            // lejtő kiegyenlítés
+            // lejtő kiegyenlítés (szigorúan térfogatmegőrző!)
             for (int pass = 0; pass < 2; pass++)
             {
                 for (int i = 0; i < n - 1; i++)
@@ -324,12 +359,12 @@ namespace WinterTray.Engine
                     {
                         float m = (-diff - Slope) * 0.5f;
                         T[i] += m;
-                        T[i + 1] += m;
+                        T[i + 1] -= m;
                     }
                 }
             }
 
-            double k = 1 - Math.Exp(-7.0 * dt);
+            double k = 1 - Math.Exp(-14.0 * dt);
             float maxDelta = 0;
             float peak = 0;
             for (int i = 0; i < n; i++)
@@ -341,7 +376,14 @@ namespace WinterTray.Engine
                 if (H[i] > peak) peak = H[i];
             }
             Peak = peak;
-            if (maxDelta > 0.02f) _dirty = true;
+            if (maxDelta > 0.002f) _dirty = true;
+
+            // Ha az ablak túl közel van a tálcához vagy a képernyő aljához, az alsó jégcsapok azonnal megszűnnek
+            if (BottomClearance < 38.0 && Icicles.Count > 0)
+            {
+                Icicles.Clear();
+                _dirty = true;
+            }
 
             // Jégcsapok lassú, természetes növekedése az idő előrehaladtával
             if (Icicles.Count > 0)
@@ -459,6 +501,19 @@ namespace WinterTray.Engine
 
         // ------------------------------------------------------------------ RAJZOLÁS ÉS GEOMETRIA
 
+        private static readonly Pen s_snowOutline = CreateSnowOutlinePen();
+        private static Pen CreateSnowOutlinePen()
+        {
+            var p = new Pen(new SolidColorBrush(Color.FromArgb(145, 148, 178, 210)), 1.1)
+            {
+                LineJoin = PenLineJoin.Round,
+                StartLineCap = PenLineCap.Round,
+                EndLineCap = PenLineCap.Round
+            };
+            p.Freeze();
+            return p;
+        }
+
         public void Render(
             DrawingContext dc,
             Brush fill,
@@ -492,14 +547,14 @@ namespace WinterTray.Engine
             }
 
             // 2. Felső hóréteg rajzolása
-            if (Peak >= 0.15f && _fill != null)
+            if (Peak >= 0.12f && _fill != null)
             {
-                double alpha = Math.Clamp((Peak - 0.15) / 1.4, 0.0, 1.0);
-                bool pushOpacity = alpha < 0.96;
+                double alpha = Math.Clamp((Peak - 0.08) / 0.5, 0.0, 1.0);
+                bool pushOpacity = alpha < 0.98;
                 if (pushOpacity) dc.PushOpacity(alpha);
 
                 if (_edge != null) dc.DrawGeometry(null, halo, _edge);
-                dc.DrawGeometry(fill, null, _fill);
+                dc.DrawGeometry(fill, s_snowOutline, _fill);
                 if (_edge != null) dc.DrawGeometry(null, edge, _edge);
 
                 if (pushOpacity) dc.Pop();
@@ -510,9 +565,17 @@ namespace WinterTray.Engine
 
         private void EnsureIcicles(bool showIcicles, double density, double screenHeight)
         {
-            if (!showIcicles || IsTaskbar || Width < 120 || Height < 50)
+            // Ha a tálca, vagy az ablak túl kicsi, vagy a tálca / képernyő alja túl közel van az aljához:
+            // semmilyen alsó jégcsap nem keletkezhet!
+            bool allowBottom = showIcicles && !IsTaskbar && Width >= 120 && Height >= 50 && BottomClearance >= 38.0;
+
+            if (!allowBottom)
             {
-                Icicles.Clear();
+                if (Icicles.Count > 0)
+                {
+                    Icicles.Clear();
+                    _dirty = true;
+                }
                 return;
             }
 
@@ -537,8 +600,9 @@ namespace WinterTray.Engine
             double baseSpacing = 16.0 / Math.Clamp(density, 0.4, 2.5);
 
             // ALSÓ JÉGCSAPOK (lelógnak az ablak aljáról a háttérbe)
-            // Csak ha az ablak nem ül a tálcán
-            if (Bottom < screenHeight - 42)
+            // Csak ha az ablak szabadon lebeg a térben, és legalább 38 DIP hellyel a tálca / képernyő alja felett van!
+            double maxLenAllowed = Math.Min(26.0, BottomClearance - 12.0);
+            if (maxLenAllowed >= 5.0)
             {
                 double curX = activeLeft + 6.0 + rnd.NextDouble() * 8.0;
                 while (curX < activeRight - 10.0)
@@ -557,6 +621,9 @@ namespace WinterTray.Engine
                         double len = lenRoll < 0.45 ? (6.0 + rnd.NextDouble() * 7.0)
                                    : (lenRoll < 0.82 ? (11.0 + rnd.NextDouble() * 9.0)
                                    : (20.0 + rnd.NextDouble() * 10.0));
+
+                        len = Math.Min(len, maxLenAllowed);
+                        if (len < 4.0) continue;
 
                         int maxHits = len > 18.0 ? 3 : (len > 10.0 ? 2 : 1);
 
@@ -596,34 +663,19 @@ namespace WinterTray.Engine
                 return;
             }
 
-            double activeLeft = EdgeMargin;
-            double activeWidth = Math.Max(Step * 2, Width - EdgeMargin * 2.0);
-
             if (_topPts.Length < n)
             {
                 _topPts = new Point[n];
                 _basePts = new Point[n];
             }
 
-            // 1. Felső hóréteg: a sarkoknál (6px-ben) finoman és természetesen lefut 0-ra
-            const double TaperDist = 6.0;
+            // 1. Másolás átmeneti tömbbe
             for (int i = 0; i < n; i++)
             {
-                double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
-                double dLeft = x - activeLeft;
-                double dRight = (activeLeft + activeWidth) - x;
-                double d = Math.Min(dLeft, dRight);
-                double taper = 1.0;
-                if (d < TaperDist)
-                {
-                    double u = Math.Clamp(d / TaperDist, 0.0, 1.0);
-                    taper = u * u * (3.0 - 2.0 * u);
-                }
-
-                _tmp[i] = (float)(H[i] * taper);
+                _tmp[i] = H[i];
             }
 
-            // 2. Simítás a természetes, lágy hótakaróért
+            // 2. Simítás a természetes, lágy, organikus hótakaróért
             for (int pass = 0; pass < 2; pass++)
             {
                 float prev = _tmp[0];
@@ -636,84 +688,264 @@ namespace WinterTray.Engine
                 }
             }
 
-            // A Windows 11 lekerekített sarkainál szigorúan 0-ra kényszerítjük a szélső pontokat
-            for (int i = 0; i < n; i++)
+            double peakH = Math.Max(0.0, (double)Peak);
+            if (peakH < 0.12 || Width < 40)
             {
-                double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
-                double dLeft = x - activeLeft;
-                double dRight = (activeLeft + activeWidth) - x;
-                double d = Math.Min(dLeft, dRight);
-                if (d < TaperDist)
+                _fill = null;
+                _edge = null;
+                _dirty = false;
+                return;
+            }
+
+            // 3. Alap- és tetőpontok kiszámítása:
+            // A Windows 11 lekerekített ablakpereme mentén (R = 8.0)
+            const double R = 8.0;
+            const double overlap = 1.6;
+            double stepX = n > 1 ? Width / (n - 1) : Step;
+
+            if (!IsTaskbar && Width >= 40.0)
+            {
+                for (int i = 0; i < n; i++)
                 {
-                    double u = Math.Clamp(d / TaperDist, 0.0, 1.0);
-                    _tmp[i] *= (float)(u * u * (3.0 - 2.0 * u));
+                    double x = i * stepX;
+                    double h = _tmp[i];
+                    if (h <= 0.005)
+                    {
+                        _tmp[i] = 0f;
+                        continue;
+                    }
+
+                    double distToCorner = Math.Min(x, Width - x);
+                    if (distToCorner < R)
+                    {
+                        // Amikor a hó még egészen kicsi (< 0.85 px), a sarok felső ívén (dMin ~ 2.8 px) finoman
+                        // elvékonyodva ér véget, hogy ne lógjon le vékony csíkban az oldalfalon.
+                        // Amint a hó vastagszik (>= 0.85 px), a sarok-ív (isLeftCorner / isRightCorner) egyetlen
+                        // folytonos Bezier-kupolával átöleli a sarkot és lelóg az oldalfal mentén.
+                        double capBlend = Math.Clamp((h - 0.55) / 0.55, 0.0, 1.0);
+                        double dMin = 2.8 * (1.0 - capBlend);
+                        if (distToCorner <= dMin + 0.01)
+                        {
+                            _tmp[i] = 0f;
+                        }
+                        else
+                        {
+                            double w = (R - distToCorner) / (R - dMin);
+                            double smallTaper = 1.0 - w * w;
+                            double effTaper = smallTaper * (1.0 - capBlend) + 1.0 * capBlend;
+                            _tmp[i] = (float)(h * effTaper);
+                        }
+                    }
                 }
             }
-            _tmp[0] = 0f;
-            _tmp[n - 1] = 0f;
-
-            // 3. Pontok generálása:
-            // Y = 3.0 takarja el a sötét ablakkeretet (a fekete csík 100%-ban megszűnt!).
-            // X = activeLeft (2.5px) és X = Width - 2.5px pontosan a Windows 11 lekerekített sarkára illeszkedik,
-            // így egyetlen pixel sem lóg ki a levegőbe a sarkoknál, tökéletesen kerek marad az ablak!
-            const double YOverlap = 3.0;
-            for (int i = 0; i < n; i++)
+            else
             {
-                double x = Math.Min(activeLeft + i * Step, activeLeft + activeWidth);
-                _basePts[i] = new Point(x, YOverlap);
-                _topPts[i] = new Point(x, YOverlap - _tmp[i]);
+                _tmp[0] = 0f;
+                _tmp[n - 1] = 0f;
             }
 
-            // 3. Felső hógeometria építése
+            for (int i = 0; i < n; i++)
+            {
+                double x = i * stepX;
+                double yBase = GetYBase(x, Width, !IsTaskbar);
+                double distToCorner = Math.Min(x, Width - x);
+                double waveFade = IsTaskbar ? 1.0 : Math.Clamp(distToCorner / R, 0.0, 1.0);
+
+                // Organikus, enyhén hullámzó alsó hóperem a fejlécen (ahogy a referencia fotón látható)
+                double wave = 0.55 + 0.28 * Math.Sin(x * 0.085) + 0.17 * Math.Cos(x * 0.037 + 0.9);
+                double lipDip = Math.Min(2.8, (double)_tmp[i] * 0.22) * wave * waveFade;
+                double lipWave = yBase + lipDip;
+                _basePts[i] = new Point(x, lipWave);
+
+                double cornerCrown = 0.0;
+                if (!IsTaskbar && distToCorner < R)
+                {
+                    double u = (R - distToCorner) / R;
+                    cornerCrown = u * u * Math.Min(2.0, (double)_tmp[i] * 0.32);
+                }
+
+                // A felső hófelület az ablak tetejéhez (overlap) viszonyul, nem zuhan le yBase=9.6-ra x=0 előtt,
+                // így sosem keletkezik lépcső vagy fül a saroknál!
+                double f = IsTaskbar ? 1.0 : Math.Clamp(((double)_tmp[i] - 0.4) / 0.6, 0.0, 1.0);
+                double ySurfaceBase = yBase * (1.0 - f) + overlap * f;
+                _topPts[i] = new Point(x, ySurfaceBase - _tmp[i] + cornerCrown);
+            }
+
             var fill = new StreamGeometry();
             var edge = new StreamGeometry();
+            bool hasGeometry = false;
 
-            bool hasMounds = false;
             using (var fillCtx = fill.Open())
             using (var edgeCtx = edge.Open())
             {
                 int i = 0;
                 while (i < n)
                 {
-                    while (i < n && _tmp[i] <= 0.15f) i++;
+                    // Inaktív (söpört vagy 0 magasságú) szakaszok átugrása
+                    while (i < n && _tmp[i] < 0.08f) i++;
                     if (i >= n) break;
 
-                    int spanStart = Math.Max(0, i - 1);
-                    while (i < n && _tmp[i] > 0.15f) i++;
-                    int spanEnd = Math.Min(n - 1, i);
+                    int iStart = i;
+                    while (i < n && _tmp[i] >= 0.08f) i++;
+                    int iEnd = i - 1;
 
-                    if (spanEnd <= spanStart) continue;
+                    // Egészen parányi, 1 px-nél kisebb zaj kihagyása
+                    if (iEnd - iStart < 1 && _tmp[iStart] < 0.20f) continue;
 
-                    hasMounds = true;
+                    hasGeometry = true;
 
-                    Point firstTop = _topPts[spanStart];
-                    fillCtx.BeginFigure(firstTop, true, true);
-                    edgeCtx.BeginFigure(firstTop, false, false);
+                    int iCornerL = Math.Min(4, iEnd);
+                    int iCornerR = Math.Max(iStart, n - 5);
 
-                    for (int k = spanStart + 1; k <= spanEnd; k++)
+                    bool isLeftCorner = (iStart <= 1) && (!IsTaskbar) && (Width >= 60.0) && (iEnd >= 4) && (_tmp[iCornerL] >= 0.85f);
+                    bool isRightCorner = (iEnd >= n - 2) && (!IsTaskbar) && (Width >= 60.0) && (iStart <= n - 5) && (_tmp[iCornerR] >= 0.85f);
+
+                    int stepStart;
+                    int backEnd;
+
+                    if (isLeftCorner)
+                    {
+                        float hL = _tmp[iCornerL];
+                        double scaleL = Math.Clamp((hL - 0.75) / 5.5, 0.08, 1.0);
+                        double wOverL = 0.8 + 3.6 * scaleL;
+                        double yCornerBase = overlap + R; // 9.6 px: a Windows 11 kerek sarkának alsó érintési pontja
+                        double tipDepthL = yCornerBase + 8.0 * scaleL;
+                        double xInnerL = 0.5 * scaleL;
+
+                        Point pInnerL = new Point(xInnerL, tipDepthL - 2.8 * scaleL);
+                        Point pOuterLowerL = new Point(-2.6 * scaleL - 0.3, tipDepthL - 2.6 * scaleL);
+                        Point pTopCorner = _topPts[iCornerL];
+
+                        double spanY = Math.Max(4.0, tipDepthL - pTopCorner.Y);
+                        Point pCrestL = new Point(-wOverL, pTopCorner.Y + spanY * 0.36);
+
+                        // Kezdőpont a sarok tövénél: _basePts[0]
+                        fillCtx.BeginFigure(_basePts[0], true, true);
+
+                        // 1. Belső ív lefelé az ablak bal széle mentén
+                        Point cpIn1 = new Point(0.2 * scaleL, yCornerBase + 0.6 * scaleL);
+                        Point cpIn2 = new Point(xInnerL, (pInnerL.Y + yCornerBase) * 0.5);
+                        fillCtx.BezierTo(cpIn1, cpIn2, pInnerL, true, false);
+
+                        // 2. Természetesen gömbölyű csepp-vég a lelógás alján
+                        Point cpTip1 = new Point(xInnerL, tipDepthL + 1.0 * scaleL);
+                        Point cpTip2 = new Point(pOuterLowerL.X, tipDepthL + 1.0 * scaleL);
+                        fillCtx.BezierTo(cpTip1, cpTip2, pOuterLowerL, true, false);
+
+                        // 3. Organikusan ívelt, domborodó külső oldal
+                        Point cpSide1 = new Point(-3.6 * scaleL - 0.3, pTopCorner.Y + spanY * 0.72);
+                        Point cpSide2 = new Point(-wOverL - 0.2 * scaleL, pTopCorner.Y + spanY * 0.48);
+                        fillCtx.BezierTo(cpSide1, cpSide2, pCrestL, true, false);
+
+                        // 4. Egyetlen töretlen sarok-kupola ív közvetlenül pTopCorner-ig (x = 8 px), így 0 lépcső keletkezik!
+                        Point cpArch1 = new Point(-wOverL * 0.90, pTopCorner.Y + spanY * 0.10);
+                        Point cpArch2 = new Point(pTopCorner.X * 0.32, pTopCorner.Y);
+                        fillCtx.BezierTo(cpArch1, cpArch2, pTopCorner, true, false);
+
+                        edgeCtx.BeginFigure(pOuterLowerL, false, false);
+                        edgeCtx.BezierTo(cpSide1, cpSide2, pCrestL, true, true);
+                        edgeCtx.BezierTo(cpArch1, cpArch2, pTopCorner, true, true);
+
+                        stepStart = iCornerL + 1;
+                        backEnd = 0;
+                    }
+                    else
+                    {
+                        int iTipStart = Math.Max(0, iStart - 1);
+                        Point pTipStart = _basePts[iTipStart];
+                        fillCtx.BeginFigure(pTipStart, true, true);
+                        edgeCtx.BeginFigure(pTipStart, false, false);
+
+                        Point mid0 = new Point((pTipStart.X + _topPts[iStart].X) * 0.5, (pTipStart.Y + _topPts[iStart].Y) * 0.5);
+                        fillCtx.LineTo(mid0, true, true);
+                        edgeCtx.LineTo(mid0, true, true);
+                        fillCtx.QuadraticBezierTo(_topPts[iStart], _topPts[iStart], true, true);
+                        edgeCtx.QuadraticBezierTo(_topPts[iStart], _topPts[iStart], true, true);
+
+                        stepStart = iStart + 1;
+                        backEnd = iTipStart;
+                    }
+
+                    // 4. Felső hófelület végigfutása a szakaszon
+                    int stepEnd = isRightCorner ? iCornerR : iEnd;
+                    for (int k = stepStart; k <= stepEnd; k++)
                     {
                         fillCtx.LineTo(_topPts[k], true, true);
                         edgeCtx.LineTo(_topPts[k], true, true);
                     }
 
-                    for (int k = spanEnd; k >= spanStart; k--)
+                    // 5. Jobb sarok vagy jobb szakaszvég kezelése
+                    if (isRightCorner)
                     {
-                        fillCtx.LineTo(_basePts[k], true, false);
+                        float hR = _tmp[iCornerR];
+                        double scaleR = Math.Clamp((hR - 0.75) / 5.5, 0.08, 1.0);
+                        double wOverR = 0.8 + 3.6 * scaleR;
+                        double yCornerBase = overlap + R;
+                        double tipDepthR = yCornerBase + 8.0 * scaleR;
+                        double xInnerR = Width - 0.5 * scaleR;
+
+                        Point pInnerR = new Point(xInnerR, tipDepthR - 2.8 * scaleR);
+                        Point pOuterLowerR = new Point(Width + 2.6 * scaleR + 0.3, tipDepthR - 2.6 * scaleR);
+                        Point pTopCornerR = _topPts[iCornerR];
+
+                        double spanRY = Math.Max(4.0, tipDepthR - pTopCornerR.Y);
+                        Point pCrestR = new Point(Width + wOverR, pTopCornerR.Y + spanRY * 0.36);
+
+                        // 1. Egyetlen töretlen sarok-kupola ív pTopCornerR-től (x = Width - 8) pCrestR-ig
+                        Point cpRArch1 = new Point(Width - (Width - pTopCornerR.X) * 0.32, pTopCornerR.Y);
+                        Point cpRArch2 = new Point(Width + wOverR * 0.90, pTopCornerR.Y + spanRY * 0.10);
+                        fillCtx.BezierTo(cpRArch1, cpRArch2, pCrestR, true, true);
+                        edgeCtx.BezierTo(cpRArch1, cpRArch2, pCrestR, true, true);
+
+                        // 2. Organikusan ívelt, domborodó külső oldal
+                        Point cpRSide1 = new Point(Width + wOverR + 0.2 * scaleR, pTopCornerR.Y + spanRY * 0.48);
+                        Point cpRSide2 = new Point(Width + 3.6 * scaleR + 0.3, pTopCornerR.Y + spanRY * 0.72);
+                        fillCtx.BezierTo(cpRSide1, cpRSide2, pOuterLowerR, true, true);
+                        edgeCtx.BezierTo(cpRSide1, cpRSide2, pOuterLowerR, true, true);
+
+                        // 3. Természetesen gömbölyű csepp-vég a jobb lelógás alján
+                        Point cpRTip1 = new Point(pOuterLowerR.X, tipDepthR + 1.0 * scaleR);
+                        Point cpRTip2 = new Point(xInnerR, tipDepthR + 1.0 * scaleR);
+                        fillCtx.BezierTo(cpRTip1, cpRTip2, pInnerR, true, false);
+
+                        // 4. Belső ív felfelé az ablak jobb széle mentén
+                        Point cpRIn1 = new Point(xInnerR, (pInnerR.Y + yCornerBase) * 0.5);
+                        Point cpRIn2 = new Point(Width - 0.2 * scaleR, yCornerBase + 0.6 * scaleR);
+                        fillCtx.BezierTo(cpRIn1, cpRIn2, _basePts[n - 1], true, false);
+
+                        // Visszafutás a fejléc mentén
+                        for (int k = n - 2; k >= backEnd; k--)
+                        {
+                            fillCtx.LineTo(_basePts[k], true, false);
+                        }
+                    }
+                    else
+                    {
+                        int iTipEnd = Math.Min(n - 1, iEnd + 1);
+                        Point pTipEnd = _basePts[iTipEnd];
+                        fillCtx.QuadraticBezierTo(_topPts[iEnd], pTipEnd, true, true);
+                        edgeCtx.QuadraticBezierTo(_topPts[iEnd], pTipEnd, true, true);
+
+                        // Visszafutás a fejléc mentén
+                        for (int k = iTipEnd - 1; k >= backEnd; k--)
+                        {
+                            fillCtx.LineTo(_basePts[k], true, false);
+                        }
                     }
                 }
             }
 
-            if (hasMounds)
+            if (!hasGeometry)
+            {
+                _fill = null;
+                _edge = null;
+            }
+            else
             {
                 fill.Freeze();
                 edge.Freeze();
                 _fill = fill;
                 _edge = edge;
-            }
-            else
-            {
-                _fill = null;
-                _edge = null;
             }
 
             // 4. Jégcsapok építése

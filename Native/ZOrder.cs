@@ -25,9 +25,16 @@ namespace WinterTray.Native
                 Win32.ShowWindow(overlay, Win32.SW_RESTORE);
             }
 
-            // Az overlay mindig Topmost szinten marad, így a jobb alsó tálcázás (Asztal megjelenítése / Win+D)
-            // sem tünteti el a hóesést az asztalról.
-            // A Képmetsző / Screenshot közben pedig a dedikált IsScreenCaptureActive érzékelő azonnal elrejti.
+            // Képernyőmentés (Snipping Tool / ScreenClippingHost) közben nem toljuk az overlay-t a legtetejére,
+            // így a Képmetsző felülete tisztán az overlay felett jelenik meg,
+            // miközben a hóréteg benne marad a készülő képernyőfotóban!
+            if (Win32.IsScreenCaptureActive())
+            {
+                return;
+            }
+
+            // Normál esetben az overlay Topmost szinten ül, így garantáltan az ablakok felett marad,
+            // és semmilyen előtérbe hozott alkalmazás (pl. Fájlkezelő) nem tudja elfedni a saját havát!
             Win32.SetWindowPos(overlay, Win32.HWND_TOPMOST, 0, 0, 0, 0,
                 Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE);
         }
