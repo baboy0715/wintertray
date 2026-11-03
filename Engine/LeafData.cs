@@ -46,37 +46,6 @@ namespace WinterTray.Engine
         public double Age;
         public double MaxLife;
         public double Radius;
-    }
-
-    /// <summary>
-    /// Ablak felső peremén gyűlő vízréteg (pocsolya / film) és vízhullám dinamika.
-    /// </summary>
-    public sealed class WindowWaterFilm
-    {
         public IntPtr HWnd;
-        /// <summary>Vízszint vastagsága képpontban (0.0 - 4.0 px).</summary>
-        public double Level;
-        /// <summary>Ablakmozgatásból és kéz/kurzor seprésből származó hullámsebesség a lécen (px/s).</summary>
-        public double SloshVx;
-        /// <summary>Hullám tarajának vizuális kitérése.</summary>
-        public double WaveOffset;
-        /// <summary>Ablak szélein lefolyó cseppek generálási időzítője.</summary>
-        public double SideDripAcc;
-    }
-
-    /// <summary>
-    /// Az ablak függőleges bal vagy jobb oldalán valósághűen lecsorgó vízcsepp felületi feszültséggel.
-    /// </summary>
-    public sealed class RunningDrop
-    {
-        public IntPtr HWnd;
-        public bool IsLeftEdge;        // true = bal oldalon folyik le, false = jobb oldalon
-        public double OffsetX;         // finom oldalirányú rezgés a szegély mentén
-        public double RelY;            // az ablak tetejétől lefelé megtett távolság (0 .. win.Height)
-        public double Vy;              // lefolyási pillanatnyi sebesség
-        public double Length;          // cseppuszály hossza (px)
-        public double Thickness;       // csepp vastagsága (px)
-        public double Alpha;           // áttetszőség
-        public double HesitateTimer;   // felületi feszültség miatti torpanás/megcsúszás időzítője
     }
 }
