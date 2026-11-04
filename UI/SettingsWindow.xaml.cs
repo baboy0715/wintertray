@@ -25,15 +25,6 @@ namespace WinterTray.UI
 
         private string CountText(int count) => _settings.IsHungarian ? $"{count} db" : $"{count}";
 
-        private string MeltText(double seconds)
-        {
-            if (_settings.IsHungarian)
-            {
-                return seconds <= 0 ? "soha" : $"{seconds:F0} mp";
-            }
-            return seconds <= 0 ? "never" : $"{seconds:F0} s";
-        }
-
         private string LeafLifeText(double seconds)
         {
             if (_settings.IsHungarian)
@@ -126,7 +117,6 @@ namespace WinterTray.UI
             ChkLimitMaxHeight.Content = hu
                 ? "Vastagság korlátozása (kikapcsolva a hóréteg korlátlanul nőhet)"
                 : "Limit thickness (when unchecked, snow can grow infinitely)";
-            TxtMeltRateLabel.Text = hu ? "Olvadási idő (0 = nem olvad el)" : "Melting time (0 = never melts)";
             ChkFallOff.Content = hu
                 ? "A hó lezúdul, ha az ablakot elmozgatod, bezárod vagy kicsinyíted"
                 : "Snow falls off when a window is moved, closed, or minimized";
@@ -199,7 +189,6 @@ namespace WinterTray.UI
             // Dinamikus érték-szövegek frissítése
             TxtFlakeCount.Text = CountText(_settings.FlakeCount);
             UpdateSnowHeightText();
-            TxtMeltRate.Text = MeltText(_settings.MeltRateSeconds);
             TxtRainCount.Text = CountText(_settings.RainCount);
             TxtLeafCount.Text = CountText(_settings.LeafCount);
             TxtLeafLife.Text = LeafLifeText(_settings.LeafLifetimeSeconds);
@@ -245,8 +234,6 @@ namespace WinterTray.UI
             ChkLimitMaxHeight.IsChecked = _settings.LimitSnowHeight;
             SliderMaxHeight.Value = _settings.MaxSnowHeight;
             UpdateSnowHeightText();
-            SliderMeltRate.Value = _settings.MeltRateSeconds;
-            TxtMeltRate.Text = MeltText(_settings.MeltRateSeconds);
             ChkFallOff.IsChecked = _settings.FallOffOnWindowMove;
 
             // Őszi beállítások
@@ -396,8 +383,6 @@ namespace WinterTray.UI
             _settings.LimitSnowHeight = ChkLimitMaxHeight.IsChecked ?? true;
             _settings.MaxSnowHeight = SliderMaxHeight.Value;
             UpdateSnowHeightText();
-            _settings.MeltRateSeconds = SliderMeltRate.Value;
-            TxtMeltRate.Text = MeltText(_settings.MeltRateSeconds);
             _settings.FallOffOnWindowMove = ChkFallOff.IsChecked ?? true;
 
             // Őszi beállítások
@@ -519,7 +504,6 @@ namespace WinterTray.UI
             _settings.AccumulationSpeed = def.AccumulationSpeed;
             _settings.LimitSnowHeight = def.LimitSnowHeight;
             _settings.MaxSnowHeight = def.MaxSnowHeight;
-            _settings.MeltRateSeconds = def.MeltRateSeconds;
             _settings.FallOffOnWindowMove = def.FallOffOnWindowMove;
 
             _settings.TargetFps = def.TargetFps;

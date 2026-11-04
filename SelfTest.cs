@@ -16,6 +16,97 @@ namespace WinterTray
     /// </summary>
     internal static class SelfTest
     {
+        public static void RunUnitTests()
+        {
+            var def = new Settings();
+            if (def.FlakeCount != 250) throw new Exception($"FlakeCount is {def.FlakeCount}, expected 250");
+            if (Math.Abs(def.AccumulationSpeed - 0.40) > 0.001) throw new Exception($"AccumulationSpeed is {def.AccumulationSpeed}, expected 0.40");
+            if (def.MeltRateSeconds != 0.0) throw new Exception($"MeltRateSeconds is {def.MeltRateSeconds}, expected 0.0");
+
+            var world = new Engine.SnowWorld(def);
+            world.Resize(1920, 1080);
+
+            var screen1 = new ScreenInfo
+            {
+                Bounds = new Rect(0, 0, 1920, 1080),
+                WorkingArea = new Rect(0, 0, 1920, 1040),
+                IsCovered = false
+            };
+
+            var winLeft = new TrackedWindow
+            {
+                Title = "Left App",
+                Rect = new Rect(0, 0, 960, 1040),
+                PxRect = new Win32.RECT { Left = 0, Top = 0, Right = 960, Bottom = 1040 },
+                IsTaskbar = false
+            };
+
+            world.SetScreensAndWindows(new List<ScreenInfo> { screen1 }, new List<TrackedWindow> { winLeft });
+
+            if (!world.IsOccluded(500, -20, 5)) throw new Exception("Point above snapped window was not occluded!");
+            if (!world.IsOccluded(500, 300, 5)) throw new Exception("Point inside snapped window was not occluded!");
+            if (!world.IsOccluded(958, 300, 5)) throw new Exception("Point on edge of snapped window was not occluded!");
+            if (world.IsOccluded(1400, 300, 5)) throw new Exception("Open desktop point was unexpectedly occluded!");
+
+            var winRight = new TrackedWindow
+            {
+                Title = "Right App",
+                Rect = new Rect(960, 0, 960, 1040),
+                PxRect = new Win32.RECT { Left = 960, Top = 0, Right = 1920, Bottom = 1040 },
+                IsTaskbar = false
+            };
+
+            world.SetScreensAndWindows(new List<ScreenInfo> { screen1 }, new List<TrackedWindow> { winLeft, winRight });
+
+            if (!world.IsOccluded(500, 300, 5)) throw new Exception("Left half not occluded when both open");
+            if (!world.IsOccluded(1400, 300, 5)) throw new Exception("Right half not occluded when both open");
+            if (!world.IsOccluded(960, 300, 5)) throw new Exception("Seam not occluded");
+
+            // Test 3: IsScreenCovered with side-by-side windows
+            var primaryScreen = System.Windows.Forms.Screen.PrimaryScreen;
+            if (primaryScreen != null)
+            {
+                var wa = primaryScreen.WorkingArea;
+                int midX = wa.Left + wa.Width / 2;
+
+                var wLeftPx = new TrackedWindow
+                {
+                    Title = "Left App",
+                    PxRect = new Win32.RECT { Left = wa.Left, Top = wa.Top, Right = midX, Bottom = wa.Bottom }
+                };
+                var wRightPx = new TrackedWindow
+                {
+                    Title = "Right App",
+                    PxRect = new Win32.RECT { Left = midX, Top = wa.Top, Right = wa.Right, Bottom = wa.Bottom }
+                };
+
+                // Case A: 1 window only (left half) -> NOT covered
+                if (SnowOverlayWindow.IsScreenCovered(primaryScreen, new List<TrackedWindow> { wLeftPx }))
+                {
+                    throw new Exception("Single half window should NOT be covered!");
+                }
+
+                // Case B: 2 windows side by side -> COVERED!
+                if (!SnowOverlayWindow.IsScreenCovered(primaryScreen, new List<TrackedWindow> { wLeftPx, wRightPx }))
+                {
+                    throw new Exception("Two side-by-side windows should BE covered!");
+                }
+
+                // Case C: Single fullscreen window -> COVERED!
+                var wFullPx = new TrackedWindow
+                {
+                    Title = "Full App",
+                    PxRect = new Win32.RECT { Left = wa.Left, Top = wa.Top, Right = wa.Right, Bottom = wa.Bottom }
+                };
+                if (!SnowOverlayWindow.IsScreenCovered(primaryScreen, new List<TrackedWindow> { wFullPx }))
+                {
+                    throw new Exception("Single full window should BE covered!");
+                }
+            }
+
+            Console.WriteLine("ALL UNIT TESTS PASSED!");
+        }
+
         public static async Task RunAsync(string dir, SnowOverlayWindow overlay)
         {
             Directory.CreateDirectory(dir);

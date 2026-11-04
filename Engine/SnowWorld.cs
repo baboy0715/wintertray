@@ -32,6 +32,8 @@ namespace WinterTray.Engine
         private readonly Dictionary<IntPtr, SnowBank> _banks = new();
         private readonly List<SnowBank> _bankList = new();
         private List<TrackedWindow> _windows = new();
+        private List<ScreenInfo> _screens = new();
+        private readonly List<(double MinX, double MaxX)> _openSkyIntervals = new();
 
         private readonly Brush _pileFill;
         private readonly Pen _pileEdge;
@@ -181,6 +183,12 @@ namespace WinterTray.Engine
 
         // ------------------------------------------------------------------ ablakok
 
+        public void SetScreensAndWindows(List<ScreenInfo> screens, List<TrackedWindow> windows)
+        {
+            _screens = screens;
+            SetWindows(windows);
+        }
+
         public void SetWindows(List<TrackedWindow> windows)
         {
             _windows = windows;
@@ -243,6 +251,68 @@ namespace WinterTray.Engine
             }
 
             UpdateWindowsClearance();
+            UpdateOpenSkyIntervals();
+        }
+
+        private void UpdateOpenSkyIntervals()
+        {
+            _openSkyIntervals.Clear();
+
+            if (_screens.Count == 0)
+            {
+                _openSkyIntervals.Add((0, Width));
+                return;
+            }
+
+            for (int s = 0; s < _screens.Count; s++)
+            {
+                var screen = _screens[s];
+                if (screen.IsCovered) continue; // Teljesen lefedett monitor: semmilyen hópehely nem eshet!
+
+                double sLeft = screen.WorkingArea.Left;
+                double sRight = screen.WorkingArea.Right;
+                double sTop = screen.WorkingArea.Top;
+
+                var intervals = new List<(double min, double max)> { (sLeft, sRight) };
+
+                for (int w = 0; w < _windows.Count; w++)
+                {
+                    var win = _windows[w];
+                    if (win.IsTaskbar) continue;
+                    // Ha az ablak eléri a monitor felső peremét (pl. Win+Balra/Jobbra vagy maximalizált),
+                    // akkor a fölötte lévő oszlopból nem indulhat hóesés!
+                    if (win.Rect.Top <= sTop + 35 && win.Rect.Right > sLeft && win.Rect.Left < sRight)
+                    {
+                        double bMin = win.Rect.Left - 4;
+                        double bMax = win.Rect.Right + 4;
+
+                        var next = new List<(double min, double max)>();
+                        for (int i = 0; i < intervals.Count; i++)
+                        {
+                            var seg = intervals[i];
+                            if (bMax <= seg.min || bMin >= seg.max)
+                            {
+                                next.Add(seg);
+                            }
+                            else
+                            {
+                                if (seg.min < bMin) next.Add((seg.min, bMin));
+                                if (seg.max > bMax) next.Add((bMax, seg.max));
+                            }
+                        }
+                        intervals = next;
+                        if (intervals.Count == 0) break;
+                    }
+                }
+
+                for (int i = 0; i < intervals.Count; i++)
+                {
+                    if (intervals[i].max - intervals[i].min >= 8.0)
+                    {
+                        _openSkyIntervals.Add(intervals[i]);
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -305,6 +375,7 @@ namespace WinterTray.Engine
             }
 
             UpdateWindowsClearance();
+            UpdateOpenSkyIntervals();
         }
 
         /// <summary>
@@ -328,8 +399,11 @@ namespace WinterTray.Engine
                 var f = _flakes[i];
                 if (f.Y > Height - 40 || f.Y < -5 || f.X < -10 || f.X > Width + 10)
                 {
-                    f.X = area.Left + _rnd.NextDouble() * area.Width;
-                    f.Y = area.Top + _rnd.NextDouble() * area.Height;
+                    double candX = area.Left + _rnd.NextDouble() * area.Width;
+                    double candY = area.Top + _rnd.NextDouble() * area.Height;
+                    if (IsOccluded(candX, candY, f.Size * 1.3)) continue;
+                    f.X = candX;
+                    f.Y = candY;
                     f.PrevY = f.Y;
                     f.Dvx = 0;
                     f.Dvy = 0;
@@ -343,8 +417,11 @@ namespace WinterTray.Engine
                 var f = _flakes[i];
                 if (!area.Contains(f.X, f.Y))
                 {
-                    f.X = area.Left + _rnd.NextDouble() * area.Width;
-                    f.Y = area.Top + _rnd.NextDouble() * area.Height;
+                    double candX = area.Left + _rnd.NextDouble() * area.Width;
+                    double candY = area.Top + _rnd.NextDouble() * area.Height;
+                    if (IsOccluded(candX, candY, f.Size * 1.3)) continue;
+                    f.X = candX;
+                    f.Y = candY;
                     f.PrevY = f.Y;
                     f.Dvx = 0;
                     f.Dvy = 0;
@@ -508,14 +585,72 @@ namespace WinterTray.Engine
             });
         }
 
-        public bool IsInsideAnyWindow(double x, double y)
+        public bool IsOccluded(double x, double y, double radius)
         {
+            if (x < -120 || x > Width + 120 || y > Height + 50) return true;
+
+            // 1. Ha a pont olyan monitoron van, amely teljesen le van fedve
+            for (int s = 0; s < _screens.Count; s++)
+            {
+                var sc = _screens[s];
+                if (sc.IsCovered && sc.Bounds.Contains(x, y))
+                {
+                    return true;
+                }
+            }
+
+            // 2. Ablakok általi kitakarás vizsgálata
             for (int i = 0; i < _windows.Count; i++)
             {
                 var w = _windows[i];
-                if (w.Rect.Contains(x, y)) return true;
+                if (w.IsTaskbar) continue;
+
+                double wLeft = w.Rect.Left - 2.0;
+                double wRight = w.Rect.Right + 2.0;
+                double wTop = w.Rect.Top - 2.0;
+                double wBottom = w.Rect.Bottom + 2.0;
+
+                // Monitor munkaterület felső és alsó határa az ablak környezetében
+                double sTop = 0;
+                double sBottom = Height;
+                for (int s = 0; s < _screens.Count; s++)
+                {
+                    var sc = _screens[s];
+                    if (sc.Bounds.IntersectsWith(w.Rect))
+                    {
+                        sTop = sc.WorkingArea.Top;
+                        sBottom = sc.WorkingArea.Bottom;
+                        break;
+                    }
+                }
+
+                // Ha az ablak eléri a képernyő tetejét (pl. 2 ablak egymás mellett, maximalizált ablak, stb.)
+                // akkor fölötte / a fejlécénél NEM eshet hó!
+                if (w.Rect.Top <= sTop + 35)
+                {
+                    wTop = -9999.0;
+                }
+
+                // Ha az ablak az alsó peremet / tálcát is eléri
+                if (w.Rect.Bottom >= sBottom - 45)
+                {
+                    wBottom = 9999.0;
+                }
+
+                // Ha a hópehely köre metszi az ablak kitakarási téglalapját
+                if (x + radius >= wLeft && x - radius <= wRight &&
+                    y + radius >= wTop && y - radius <= wBottom)
+                {
+                    return true;
+                }
             }
+
             return false;
+        }
+
+        public bool IsInsideAnyWindow(double x, double y)
+        {
+            return IsOccluded(x, y, 0);
         }
 
         public bool IsCoveredByHigher(double x, double y, IntPtr hwnd)
@@ -801,9 +936,9 @@ namespace WinterTray.Engine
                     continue;
                 }
 
-                // Ha a hópehely egy ablak területére ért (ahol nem is rajzolódik ki),
-                // ne utazzon láthatatlanul az ablak mögött/belsejében, hogy aztán egy lejjebb lévő ablakra essen!
-                if (f.Y > 0 && IsInsideAnyWindow(f.X, f.Y))
+                // Ha a hópehely egy ablak vagy kitakart terület felé ért,
+                // ne essen az alkalmazások mögött, hanem szűnjön meg / szülessen újjá a szabad égbolton!
+                if (IsOccluded(f.X, f.Y, f.Size * 1.1))
                 {
                     _flakes[i] = NewFlake(false);
                     continue;
@@ -1122,9 +1257,44 @@ namespace WinterTray.Engine
                 Variant = _rnd.Next(SnowSprites.CrystalVariants)
             };
 
-            f.X = _rnd.NextDouble() * (Width + 160) - 80;
-            f.Y = initial ? _rnd.NextDouble() * Height : -f.Size * 3 - _rnd.NextDouble() * 60;
-            f.PrevY = f.Y;
+            if (_openSkyIntervals.Count == 0)
+            {
+                // Ha minden képernyőtető vagy monitor le van fedve, a pehely nem látható helyre kerül
+                f.X = -9999;
+                f.Y = -9999;
+                f.PrevY = -9999;
+            }
+            else
+            {
+                double totalWidth = 0;
+                for (int i = 0; i < _openSkyIntervals.Count; i++)
+                {
+                    totalWidth += (_openSkyIntervals[i].MaxX - _openSkyIntervals[i].MinX);
+                }
+
+                double r = _rnd.NextDouble() * totalWidth;
+                double chosenX = _openSkyIntervals[0].MinX;
+                for (int i = 0; i < _openSkyIntervals.Count; i++)
+                {
+                    double segW = _openSkyIntervals[i].MaxX - _openSkyIntervals[i].MinX;
+                    if (r <= segW || i == _openSkyIntervals.Count - 1)
+                    {
+                        chosenX = _openSkyIntervals[i].MinX + r;
+                        break;
+                    }
+                    r -= segW;
+                }
+
+                f.X = chosenX;
+                f.Y = initial ? _rnd.NextDouble() * Height : -f.Size * 3 - _rnd.NextDouble() * 60;
+                f.PrevY = f.Y;
+
+                if (initial && IsOccluded(f.X, f.Y, f.Size * 1.3))
+                {
+                    f.Y = -f.Size * 3 - _rnd.NextDouble() * 60;
+                    f.PrevY = f.Y;
+                }
+            }
 
             switch (_s.FlakeStyle)
             {
@@ -1240,7 +1410,7 @@ namespace WinterTray.Engine
             for (int i = 0; i < _particleCount; i++)
             {
                 ref readonly var p = ref _particles[i];
-                if (p.Y >= Height - 44 || IsInsideAnyWindow(p.X, p.Y)) continue;
+                if (p.Y >= Height - 44 || IsOccluded(p.X, p.Y, p.Size * 1.1)) continue;
 
                 double t = p.Age / p.Life;
                 switch (p.Kind)
@@ -1277,7 +1447,7 @@ namespace WinterTray.Engine
             for (int i = 0; i < _flakes.Count; i++)
             {
                 var f = _flakes[i];
-                if (f.Y >= Height - 44 || IsInsideAnyWindow(f.X, f.Y)) continue;
+                if (f.Y >= Height - 44 || IsOccluded(f.X, f.Y, f.Size * 1.3)) continue;
 
                 switch (f.Kind)
                 {
@@ -1311,7 +1481,7 @@ namespace WinterTray.Engine
                 var f = _flakes[i];
                 if (f.Kind == FlakeKind.Bokeh)
                 {
-                    if (f.Y >= Height - 44 || IsInsideAnyWindow(f.X, f.Y)) continue;
+                    if (f.Y >= Height - 44 || IsOccluded(f.X, f.Y, f.Size * 2.3)) continue;
 
                     double dia = f.Size * 4.6;
                     var img = SnowSprites.GetBokeh(f.Opacity * 0.6);

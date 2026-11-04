@@ -17,6 +17,13 @@ namespace WinterTray.Native
         public bool IsTaskbar { get; init; }
     }
 
+    public sealed class ScreenInfo
+    {
+        public Rect Bounds { get; init; }
+        public Rect WorkingArea { get; init; }
+        public bool IsCovered { get; init; }
+    }
+
     public sealed class WindowTracker
     {
         private static readonly HashSet<string> IgnoredClasses = new(StringComparer.OrdinalIgnoreCase)

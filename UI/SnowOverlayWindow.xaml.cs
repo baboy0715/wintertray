@@ -164,9 +164,13 @@ namespace WinterTray.UI
             {
                 var windows = _tracker.Update(_pollAccumulator);
                 _pollAccumulator = 0;
-                _world.SetWindows(windows);
+
+                var screens = ComputeScreenInfos(windows);
                 bool wasCovered = _allCovered;
-                _allCovered = ComputeAllMonitorsCovered(windows);
+                _allCovered = screens.Count > 0 && screens.TrueForAll(s => s.IsCovered);
+
+                _world.SetScreensAndWindows(screens, windows);
+
                 if (wasCovered && !_allCovered)
                 {
                     _world.PopulateExposedArea(new Rect(0, 0, ActualWidth, ActualHeight));
@@ -174,9 +178,10 @@ namespace WinterTray.UI
                 covered = _allCovered && _settings.PauseWhenCovered;
             }
 
-            // Ha minden monitort egy alkalmazásablak teljesen takar, az overlay-t azonnal elrejtjük (Visibility.Hidden).
-            // Így garantáltan semmilyen hópehely nem fagyhat be a maximalizált alkalmazások (pl. Antigravity) tetejére,
-            // és a GPU / CPU használat is teljesen leáll!
+            // Ha minden monitort alkalmazásablakok teljesen takarnak (akár egy maximalizált, akár több egymás melletti ablak),
+            // az overlay-t azonnal elrejtjük (Visibility.Hidden).
+            // Így garantáltan semmilyen hópehely nem látszódik a teljes képernyős/kétablakos felületek felett/mögött,
+            // és a GPU / CPU használat is teljesen leáll (0% terhelés)!
             if (covered)
             {
                 if (Visibility != Visibility.Hidden) Visibility = Visibility.Hidden;
@@ -242,31 +247,115 @@ namespace WinterTray.UI
             return state;
         }
 
-        private static bool ComputeAllMonitorsCovered(List<TrackedWindow> windows)
+        private List<ScreenInfo> ComputeScreenInfos(List<TrackedWindow> windows)
         {
-            var screens = System.Windows.Forms.Screen.AllScreens;
-            if (screens.Length == 0) return false;
+            var list = new List<ScreenInfo>();
+            var allScreens = System.Windows.Forms.Screen.AllScreens;
+            if (allScreens.Length == 0) return list;
 
-            foreach (var screen in screens)
+            foreach (var screen in allScreens)
             {
-                var wa = screen.WorkingArea;
-                bool covered = false;
-                foreach (var w in windows)
+                bool covered = IsScreenCovered(screen, windows);
+
+                Point tlB = _toDip != null ? _toDip(new Point(screen.Bounds.Left, screen.Bounds.Top)) : new Point(screen.Bounds.Left, screen.Bounds.Top);
+                Point brB = _toDip != null ? _toDip(new Point(screen.Bounds.Right, screen.Bounds.Bottom)) : new Point(screen.Bounds.Right, screen.Bounds.Bottom);
+                Point tlW = _toDip != null ? _toDip(new Point(screen.WorkingArea.Left, screen.WorkingArea.Top)) : new Point(screen.WorkingArea.Left, screen.WorkingArea.Top);
+                Point brW = _toDip != null ? _toDip(new Point(screen.WorkingArea.Right, screen.WorkingArea.Bottom)) : new Point(screen.WorkingArea.Right, screen.WorkingArea.Bottom);
+
+                list.Add(new ScreenInfo
                 {
+                    Bounds = new Rect(tlB, brB),
+                    WorkingArea = new Rect(tlW, brW),
+                    IsCovered = covered
+                });
+            }
+
+            return list;
+        }
+
+        /// <summary>
+        /// Ellenőrzi, hogy egy monitor munkaterületét teljesen kitakarják-e az ablakok.
+        /// Támogatja az egyetlen nagy ablakot, a 2 egymás melletti félbevágott ablakot (Win+Balra/Jobbra),
+        /// valamint a 3-4 felé osztott rács-elrendezést is.
+        /// </summary>
+        internal static bool IsScreenCovered(System.Windows.Forms.Screen screen, List<TrackedWindow> windows)
+        {
+            var wa = screen.WorkingArea;
+            if (wa.Width <= 0 || wa.Height <= 0) return false;
+
+            // 1. Gyors ellenőrzés: egyetlen ablak lefedi-e a teljes képernyőt
+            for (int i = 0; i < windows.Count; i++)
+            {
+                var w = windows[i];
+                if (w.IsTaskbar) continue;
+                if (string.IsNullOrWhiteSpace(w.Title) &&
+                    !w.ClassName.StartsWith("Chrome_WidgetWin", StringComparison.OrdinalIgnoreCase) &&
+                    !w.ClassName.Equals("ApplicationFrameWindow", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var r = w.PxRect;
+                if (r.Left <= wa.Left + 12 && r.Top <= wa.Top + 12 &&
+                    r.Right >= wa.Right - 12 && r.Bottom >= wa.Bottom - 12)
+                {
+                    return true;
+                }
+            }
+
+            // 2. Több ablakos (pl. 2 egymás melletti ablak, rács) lefedés ellenőrzése GDI régió-kivonással
+            const int margin = 12;
+            int testLeft = wa.Left + margin;
+            int testTop = wa.Top + margin;
+            int testRight = wa.Right - margin;
+            int testBottom = wa.Bottom - margin;
+
+            if (testRight <= testLeft || testBottom <= testTop) return false;
+
+            IntPtr rgn = Win32.CreateRectRgn(testLeft, testTop, testRight, testBottom);
+            if (rgn == IntPtr.Zero) return false;
+
+            try
+            {
+                for (int i = 0; i < windows.Count; i++)
+                {
+                    var w = windows[i];
                     if (w.IsTaskbar) continue;
-                    // Csak valódi alkalmazásablakok (címmel vagy ismert böngésző/Electron felülettel) számítanak képernyő-lefedésnek!
-                    if (string.IsNullOrWhiteSpace(w.Title) && !w.ClassName.StartsWith("Chrome_WidgetWin") && w.ClassName != "ApplicationFrameWindow") continue;
-                    var r = w.PxRect;
-                    if (r.Left <= wa.Left + 8 && r.Top <= wa.Top + 8 &&
-                        r.Right >= wa.Right - 8 && r.Bottom >= wa.Bottom - 8)
+                    if (string.IsNullOrWhiteSpace(w.Title) &&
+                        !w.ClassName.StartsWith("Chrome_WidgetWin", StringComparison.OrdinalIgnoreCase) &&
+                        !w.ClassName.Equals("ApplicationFrameWindow", StringComparison.OrdinalIgnoreCase))
                     {
-                        covered = true;
-                        break;
+                        continue;
+                    }
+
+                    var r = w.PxRect;
+                    if (r.Right <= testLeft || r.Left >= testRight || r.Bottom <= testTop || r.Top >= testBottom)
+                    {
+                        continue;
+                    }
+
+                    // Ablak-téglalap 6 pixeles kibővítése, hogy az egymás melletti ablakok közti 1-4 px rést/hézagot áthidalja
+                    IntPtr winRgn = Win32.CreateRectRgn(r.Left - 6, r.Top - 6, r.Right + 6, r.Bottom + 6);
+                    if (winRgn != IntPtr.Zero)
+                    {
+                        Win32.CombineRgn(rgn, rgn, winRgn, Win32.RGN_DIFF);
+                        Win32.DeleteObject(winRgn);
+                    }
+
+                    int rgnType = Win32.GetRgnBox(rgn, out var box);
+                    if (rgnType == Win32.NULLREGION || box.Width <= 0 || box.Height <= 0)
+                    {
+                        return true;
                     }
                 }
-                if (!covered) return false;
+
+                int finalType = Win32.GetRgnBox(rgn, out var finalBox);
+                return finalType == Win32.NULLREGION || (finalBox.Width <= 50 && finalBox.Height <= 50);
             }
-            return true;
+            finally
+            {
+                Win32.DeleteObject(rgn);
+            }
         }
     }
 }

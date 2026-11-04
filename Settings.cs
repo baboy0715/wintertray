@@ -9,7 +9,7 @@ namespace WinterTray
 {
     public class Settings
     {
-        public const int CurrentVersion = 8;
+        public const int CurrentVersion = 9;
 
         private static readonly string ConfigDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WinterTray");
@@ -29,7 +29,7 @@ namespace WinterTray
         public AppSeason Season { get; set; } = AppSeason.Winter;
 
         // ---- Tél (Hóesés) ----
-        public int FlakeCount { get; set; } = 200;
+        public int FlakeCount { get; set; } = 250;
         public double FallSpeed { get; set; } = 1.0;
         public double WindStrength { get; set; } = 0.25;
         public double FlakeSizeMin { get; set; } = 2.3;
@@ -59,7 +59,7 @@ namespace WinterTray
         // ---- Halmok és ablak-díszítés ----
         public bool AccumulateOnWindows { get; set; } = true;
         public bool AccumulateOnTaskbar { get; set; } = false;
-        public double AccumulationSpeed { get; set; } = 0.2;
+        public double AccumulationSpeed { get; set; } = 0.40;
         public bool LimitSnowHeight { get; set; } = true;
         public double MaxSnowHeight { get; set; } = 22.0;
         /// <summary>Mennyi idő alatt olvad el egy teljes hóréteg (mp). 0 = soha.</summary>
@@ -103,6 +103,19 @@ namespace WinterTray
                         if (string.IsNullOrWhiteSpace(settings.Language))
                         {
                             settings.Language = "en";
+                        }
+                        if (settings.ConfigVersion < 9)
+                        {
+                            if (settings.FlakeCount == 200)
+                            {
+                                settings.FlakeCount = 250;
+                            }
+                            if (Math.Abs(settings.AccumulationSpeed - 0.2) < 0.01)
+                            {
+                                settings.AccumulationSpeed = 0.40;
+                            }
+                            settings.MeltRateSeconds = 0.0;
+                            settings.ConfigVersion = CurrentVersion;
                         }
                         settings.StartWithWindows = IsAutoStartEnabled();
                         return settings;

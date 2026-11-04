@@ -126,6 +126,21 @@ namespace WinterTray.Native
         public const uint WDA_MONITOR = 0x00000001;
         public const uint WDA_EXCLUDEFROMCAPTURE = 0x00000011;
 
+        public const int RGN_DIFF = 4;
+        public const int NULLREGION = 1;
+
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr CreateRectRgn(int nLeftRect, int nTopRect, int nRightRect, int nBottomRect);
+
+        [DllImport("gdi32.dll")]
+        public static extern int CombineRgn(IntPtr hrgnDest, IntPtr hrgnSrc1, IntPtr hrgnSrc2, int fnCombineMode);
+
+        [DllImport("gdi32.dll")]
+        public static extern int GetRgnBox(IntPtr hrgn, out RECT lprc);
+
+        [DllImport("gdi32.dll")]
+        public static extern bool DeleteObject(IntPtr hObject);
+
         [DllImport("user32.dll", SetLastError = true)]
         public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
 

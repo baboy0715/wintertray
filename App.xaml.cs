@@ -33,6 +33,12 @@ namespace WinterTray
             string? selfTestDir = null;
             for (int i = 0; i < e.Args.Length; i++)
             {
+                if (e.Args[i] == "--unit-tests")
+                {
+                    SelfTest.RunUnitTests();
+                    Shutdown();
+                    return;
+                }
                 if (e.Args[i] == "--selftest")
                 {
                     _selfTest = true;

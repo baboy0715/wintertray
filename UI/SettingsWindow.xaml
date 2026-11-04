@@ -251,16 +251,6 @@
                     </Border>
 
                     <Border Style="{StaticResource SettingCard}">
-                        <StackPanel>
-                            <DockPanel>
-                                <TextBlock Name="TxtMeltRateLabel" Text="Melting time (0 = never melts)" Foreground="#E0E0E0" FontWeight="Medium" />
-                                <TextBlock Name="TxtMeltRate" Text="never" Foreground="#60CDFF" HorizontalAlignment="Right" />
-                            </DockPanel>
-                            <Slider Name="SliderMeltRate" Minimum="0" Maximum="300" SmallChange="5" LargeChange="30" ValueChanged="OnSettingChanged" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource SettingCard}">
                         <CheckBox Name="ChkFallOff" Content="Snow falls off when a window is moved, closed, or minimized" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                     </Border>
                 </StackPanel>
