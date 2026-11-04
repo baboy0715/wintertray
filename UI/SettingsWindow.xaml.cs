@@ -23,17 +23,39 @@ namespace WinterTray.UI
             _isInitializing = false;
         }
 
-        private static string MeltText(double seconds) => seconds <= 0 ? "soha" : $"{seconds:F0} mp";
+        private string CountText(int count) => _settings.IsHungarian ? $"{count} db" : $"{count}";
 
-        private static string LeafLifeText(double seconds)
+        private string MeltText(double seconds)
         {
-            if (seconds <= 0) return "soha (nem tűnnek el)";
-            if (Math.Abs(seconds - 120.0) < 0.5) return "120 mp (2 perc)";
-            if (Math.Abs(seconds - 60.0) < 0.5) return "60 mp (1 perc)";
-            if (Math.Abs(seconds - 180.0) < 0.5) return "180 mp (3 perc)";
-            if (Math.Abs(seconds - 240.0) < 0.5) return "240 mp (4 perc)";
-            if (Math.Abs(seconds - 300.0) < 0.5) return "300 mp (5 perc)";
-            return $"{seconds:F0} mp";
+            if (_settings.IsHungarian)
+            {
+                return seconds <= 0 ? "soha" : $"{seconds:F0} mp";
+            }
+            return seconds <= 0 ? "never" : $"{seconds:F0} s";
+        }
+
+        private string LeafLifeText(double seconds)
+        {
+            if (_settings.IsHungarian)
+            {
+                if (seconds <= 0) return "soha (nem tűnnek el)";
+                if (Math.Abs(seconds - 120.0) < 0.5) return "120 mp (2 perc)";
+                if (Math.Abs(seconds - 60.0) < 0.5) return "60 mp (1 perc)";
+                if (Math.Abs(seconds - 180.0) < 0.5) return "180 mp (3 perc)";
+                if (Math.Abs(seconds - 240.0) < 0.5) return "240 mp (4 perc)";
+                if (Math.Abs(seconds - 300.0) < 0.5) return "300 mp (5 perc)";
+                return $"{seconds:F0} mp";
+            }
+            else
+            {
+                if (seconds <= 0) return "never (stay forever)";
+                if (Math.Abs(seconds - 120.0) < 0.5) return "120 s (2 min)";
+                if (Math.Abs(seconds - 60.0) < 0.5) return "60 s (1 min)";
+                if (Math.Abs(seconds - 180.0) < 0.5) return "180 s (3 min)";
+                if (Math.Abs(seconds - 240.0) < 0.5) return "240 s (4 min)";
+                if (Math.Abs(seconds - 300.0) < 0.5) return "300 s (5 min)";
+                return $"{seconds:F0} s";
+            }
         }
 
         private void UpdateSnowHeightText()
@@ -45,13 +67,152 @@ namespace WinterTray.UI
             }
             else
             {
-                TxtMaxHeight.Text = "korlátlan (nincs limit)";
+                TxtMaxHeight.Text = _settings.IsHungarian ? "korlátlan (nincs limit)" : "unlimited (no limit)";
                 SliderMaxHeight.IsEnabled = false;
             }
         }
 
+        private void ApplyLocalization()
+        {
+            bool hu = _settings.IsHungarian;
+            bool isAutumn = _settings.Season == AppSeason.Autumn;
+
+            Title = hu ? "WinterTray - Beállítások" : "WinterTray - Settings";
+
+            BtnFeedback.Content = hu ? "💬 Értékelés & Hibák" : "💬 Feedback & Bugs";
+            BtnFeedback.ToolTip = hu ? "Kérdőív és hibabejelentő megnyitása" : "Open feedback and bug report form";
+
+            TxtSecSeason.Text = hu ? "ÉVSZAK, TÉMA ÉS NYELV" : "SEASON, THEME & LANGUAGE";
+            TxtSeasonTitle.Text = hu ? "Aktuális évszak" : "Current season";
+            TxtSeasonSub.Text = hu
+                ? "Válts azonnal a téli hóesés és az őszi falevelek között"
+                : "Switch instantly between winter snowfall and autumn leaves";
+            RbSeasonWinter.Content = hu ? "❄ Tél" : "❄ Winter";
+            RbSeasonAutumn.Content = hu ? "🍂 Ősz" : "🍂 Autumn";
+
+            TxtLangTitle.Text = hu ? "Nyelv" : "Language";
+            TxtLangSub.Text = hu
+                ? "Válaszd ki az alkalmazás felületének nyelvét"
+                : "Select the application interface language";
+
+            // Téli szekció
+            TxtSecWinterVisual.Text = hu ? "❄ TÉLI HÓESÉS ÉS MEGJELENÉS" : "❄ WINTER SNOWFALL & APPEARANCE";
+            TxtFlakeStyleLabel.Text = hu ? "Hópelyhek stílusa" : "Snowflake style";
+            CmbStyleMixed.Content = hu ? "Vegyes (kristály + bolyhos)" : "Mixed (crystals + fluffy)";
+            CmbStyleFluffy.Content = hu ? "Lágy, bolyhos pelyhek" : "Soft, fluffy flakes";
+            CmbStyleCrystal.Content = hu ? "Részletes jégkristályok" : "Detailed ice crystals";
+
+            TxtFlakeCountLabel.Text = hu ? "Hópelyhek száma" : "Snowflake count";
+            TxtFallSpeedLabel.Text = hu ? "Esési sebesség" : "Fall speed";
+            TxtWindLabel.Text = hu ? "Természetes szél (negatív = balra)" : "Natural wind (negative = left)";
+            TxtSizeLabel.Text = hu ? "Hópelyhek mérete" : "Snowflake size";
+
+            TxtSecWinterWindows.Text = hu ? "❄ TÉLI HÓFELHALMOZÓDÁS ÉS ABLAKOK" : "❄ SNOW ACCUMULATION & WINDOWS";
+            ChkAccumulate.Content = hu
+                ? "A hó megül a szabadon álló ablakok tetején"
+                : "Snow accumulates on top of floating windows";
+            ChkSnowOverhang.Content = hu
+                ? "A hóréteg finoman ráhajoljon az ablak fejlécére (2-4 px puha perem)"
+                : "Snow gently overhangs the window title bar (2-4 px soft edge)";
+            ChkShowIcicles.Content = hu
+                ? "Jégcsapok az ablakok alján és tetején (kattintással széttörhetőek!)"
+                : "Icicles on window tops and bottoms (click to shatter!)";
+            TxtIcicleDensityLabel.Text = hu ? "Jégcsapok sűrűsége" : "Icicle density";
+            ChkTaskbar.Content = hu
+                ? "A hó megül a tálca tetején is (alapból a tálca alatt eltűnik)"
+                : "Snow also accumulates on the taskbar (otherwise disappears behind it)";
+            TxtAccumLabel.Text = hu ? "Felhalmozódás gyorsasága" : "Accumulation speed";
+            TxtMaxHeightLabel.Text = hu ? "Hóréteg maximális vastagsága" : "Maximum snow thickness";
+            ChkLimitMaxHeight.Content = hu
+                ? "Vastagság korlátozása (kikapcsolva a hóréteg korlátlanul nőhet)"
+                : "Limit thickness (when unchecked, snow can grow infinitely)";
+            TxtMeltRateLabel.Text = hu ? "Olvadási idő (0 = nem olvad el)" : "Melting time (0 = never melts)";
+            ChkFallOff.Content = hu
+                ? "A hó lezúdul, ha az ablakot elmozgatod, bezárod vagy kicsinyíted"
+                : "Snow falls off when a window is moved, closed, or minimized";
+
+            // Őszi szekció
+            TxtSecAutumnRain.Text = hu ? "🍂 ŐSZI ESŐZÉS ÉS CSOBBANÁSOK" : "🍂 AUTUMN RAIN & SPLASHES";
+            ChkRain.Content = hu
+                ? "Őszi esőzés bekapcsolása (valósághű esőcsíkok és csobbanások az ablakokon)"
+                : "Enable autumn rain (realistic rain streaks and splashes on windows)";
+            TxtRainCountLabel.Text = hu ? "Esőcseppek száma" : "Raindrop count";
+            TxtRainSpeedLabel.Text = hu ? "Eső esési sebessége" : "Rain fall speed";
+
+            TxtSecAutumnLeaves.Text = hu ? "🍂 ŐSZI FALEVELEK ÉS ABLAKOK" : "🍂 AUTUMN LEAVES & WINDOWS";
+            TxtLeafCountLabel.Text = hu
+                ? "Szálló falevelek száma (nagyon ritka, finom hullás)"
+                : "Falling leaves count (sparse, gentle fall)";
+            TxtLeafSpeedLabel.Text = hu ? "Falevelek esési sebessége" : "Leaf fall speed";
+            TxtLeafWindLabel.Text = hu ? "Természetes szél (negatív = balra)" : "Natural wind (negative = left)";
+            TxtLeafSizeLabel.Text = hu ? "Falevelek mérete" : "Leaf size";
+            ChkLeafAccumulate.Content = hu
+                ? "A levelek ráfekszenek a szabad ablakok tetejére"
+                : "Leaves rest on top of floating windows";
+            ChkLeafTaskbar.Content = hu
+                ? "A levelek és az eső a tálca tetején is megülnek/csobbannak (kikapcsolva a tálca mögé esnek)"
+                : "Leaves and rain also land/splash on the taskbar (otherwise fall behind it)";
+            TxtLeafLifeLabel.Text = hu
+                ? "Megült levelek élettartama (0 = soha nem tűnnek el)"
+                : "Rested leaf lifetime (0 = never disappears)";
+
+            // Egér szekció
+            TxtSecMouse.Text = hu ? "EGÉRMUTATÓ ÉS INTERAKCIÓ" : "MOUSE CURSOR & INTERACTION";
+            ChkMouseRepel.Content = hu
+                ? "Az egér elfújja a hulló részecskéket (szélörvény)"
+                : "Mouse cursor blows away falling particles (wind vortex)";
+            TxtMousePowerLabel.Text = hu ? "Szél erőssége" : "Wind power";
+            TxtMouseSensLabel.Text = hu
+                ? "Sebesség-érzékenység (gyorsabb egér = nagyobb hatás)"
+                : "Speed sensitivity (faster mouse = stronger effect)";
+            TxtMouseRadiusLabel.Text = hu ? "Alap hatótávolság" : "Base effect radius";
+            ChkSweep.Content = hu
+                ? "Egérrel lesöpörhető hó és lerepíthető falevelek az ablakokról"
+                : "Sweep snow and blow leaves off windows with the mouse cursor";
+
+            // Rendszer szekció
+            TxtSecSystem.Text = hu ? "TELJESÍTMÉNY ÉS RENDSZER" : "PERFORMANCE & SYSTEM";
+            TxtFpsLabel.Text = hu ? "Képfrissítés (FPS)" : "Frame rate (FPS)";
+            CmbFpsNative.Content = hu ? "Monitor Natív (VSync / 120+ FPS)" : "Monitor Native (VSync / 120+ FPS)";
+            CmbFps120.Content = hu ? "120 FPS (Szuper sima)" : "120 FPS (Super smooth)";
+            CmbFps60.Content = hu ? "60 FPS (Alapértelmezett)" : "60 FPS (Default)";
+            CmbFps30.Content = hu ? "30 FPS (Kímélő mód)" : "30 FPS (Power saving)";
+
+            TxtAnimQualityLabel.Text = hu ? "Effektek és animációk minősége" : "Effects & animation quality";
+            CmbQualityUltra.Content = hu ? "Teljes / Ultra (120 FPS sima részecskék)" : "Full / Ultra (120 FPS smooth particles)";
+            CmbQualityMed.Content = hu ? "Közepes (Kiegyensúlyozott)" : "Medium (Balanced)";
+            CmbQualityLow.Content = hu ? "Kikapcsolva (Gyenge gépekre)" : "Off (Low-end PCs)";
+
+            ChkPauseCovered.Content = hu
+                ? "Szünet, ha ablakok teljesen eltakarják az asztalt (nulla terhelés)"
+                : "Pause when windows completely cover the desktop (zero load)";
+            ChkAutoStart.Content = hu
+                ? "Automatikus indulás a Windows indításakor"
+                : "Start automatically with Windows";
+            ChkUseWallpaper.Content = hu
+                ? "Szezonális háttérkép beállítása (Tél: wallpaper.jpeg, Ősz: wallpaper-fall.jpeg)"
+                : "Set seasonal desktop wallpaper (Winter: wallpaper.jpeg, Autumn: wallpaper-fall.jpeg)";
+
+            BtnReset.Content = hu ? "Alaphelyzet" : "Reset defaults";
+            BtnSave.Content = hu ? "Mentés és bezárás" : "Save & Close";
+
+            // Dinamikus érték-szövegek frissítése
+            TxtFlakeCount.Text = CountText(_settings.FlakeCount);
+            UpdateSnowHeightText();
+            TxtMeltRate.Text = MeltText(_settings.MeltRateSeconds);
+            TxtRainCount.Text = CountText(_settings.RainCount);
+            TxtLeafCount.Text = CountText(_settings.LeafCount);
+            TxtLeafLife.Text = LeafLifeText(_settings.LeafLifetimeSeconds);
+
+            UpdateSeasonUI(isAutumn);
+        }
+
         private void LoadValues()
         {
+            // Nyelv
+            CmbLanguage.SelectedIndex = _settings.IsHungarian ? 1 : 0;
+            ApplyLocalization();
+
             // Szezon
             bool isAutumn = _settings.Season == AppSeason.Autumn;
             RbSeasonWinter.IsChecked = !isAutumn;
@@ -62,7 +223,7 @@ namespace WinterTray.UI
             CmbStyle.SelectedIndex = Math.Clamp(_settings.FlakeStyle, 0, 2);
 
             SliderFlakeCount.Value = _settings.FlakeCount;
-            TxtFlakeCount.Text = $"{_settings.FlakeCount} db";
+            TxtFlakeCount.Text = CountText(_settings.FlakeCount);
 
             SliderFallSpeed.Value = _settings.FallSpeed;
             TxtFallSpeed.Text = $"{_settings.FallSpeed:F1}x";
@@ -91,12 +252,12 @@ namespace WinterTray.UI
             // Őszi beállítások
             ChkRain.IsChecked = _settings.RainEnabled;
             SliderRainCount.Value = _settings.RainCount;
-            TxtRainCount.Text = $"{_settings.RainCount} db";
+            TxtRainCount.Text = CountText(_settings.RainCount);
             SliderRainSpeed.Value = _settings.RainFallSpeed;
             TxtRainSpeed.Text = $"{_settings.RainFallSpeed:F1}x";
 
             SliderLeafCount.Value = _settings.LeafCount;
-            TxtLeafCount.Text = $"{_settings.LeafCount} db";
+            TxtLeafCount.Text = CountText(_settings.LeafCount);
 
             SliderLeafSpeed.Value = _settings.LeafFallSpeed;
             TxtLeafSpeed.Text = $"{_settings.LeafFallSpeed:F1}x";
@@ -143,6 +304,7 @@ namespace WinterTray.UI
 
         private void UpdateSeasonUI(bool isAutumn)
         {
+            bool hu = _settings.IsHungarian;
             PanelWinter.Visibility = isAutumn ? Visibility.Collapsed : Visibility.Visible;
             PanelAutumn.Visibility = isAutumn ? Visibility.Visible : Visibility.Collapsed;
 
@@ -151,11 +313,27 @@ namespace WinterTray.UI
                 ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 167, 38))
                 : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(96, 205, 255));
 
-            TxtHeaderDesc.Text = isAutumn
-                ? "Őszi falevelek hullása és megülése az ablakokon"
-                : "Téli hóesés és hófelhalmozódás az ablakokon";
+            TxtHeaderDesc.Text = hu
+                ? (isAutumn
+                    ? "Őszi falevelek hullása és megülése az ablakokon"
+                    : "Téli hóesés és hófelhalmozódás az ablakokon")
+                : (isAutumn
+                    ? "Autumn falling leaves and rain on your windows"
+                    : "Winter snowfall and snow accumulation on your windows");
 
-            BtnClear.Content = isAutumn ? "Levelek lesöprése" : "Hó letakarítása";
+            BtnClear.Content = hu
+                ? (isAutumn ? "Levelek lesöprése" : "Hó letakarítása")
+                : (isAutumn ? "Sweep leaves" : "Clear snow");
+        }
+
+        private void OnLanguageChanged(object sender, RoutedEventArgs e)
+        {
+            if (_isInitializing) return;
+
+            _settings.Language = CmbLanguage.SelectedIndex == 1 ? "hu" : "en";
+            ApplyLocalization();
+            _settings.Save();
+            _onSeasonChangedCallback?.Invoke();
         }
 
         private void OnSeasonChanged(object sender, RoutedEventArgs e)
@@ -194,7 +372,7 @@ namespace WinterTray.UI
             // Téli beállítások mentése a modellbe
             _settings.FlakeStyle = CmbStyle.SelectedIndex;
             _settings.FlakeCount = (int)SliderFlakeCount.Value;
-            TxtFlakeCount.Text = $"{_settings.FlakeCount} db";
+            TxtFlakeCount.Text = CountText(_settings.FlakeCount);
 
             _settings.FallSpeed = SliderFallSpeed.Value;
             TxtFallSpeed.Text = $"{_settings.FallSpeed:F1}x";
@@ -225,12 +403,12 @@ namespace WinterTray.UI
             // Őszi beállítások
             _settings.RainEnabled = ChkRain.IsChecked ?? true;
             _settings.RainCount = (int)SliderRainCount.Value;
-            TxtRainCount.Text = $"{_settings.RainCount} db";
+            TxtRainCount.Text = CountText(_settings.RainCount);
             _settings.RainFallSpeed = SliderRainSpeed.Value;
             TxtRainSpeed.Text = $"{_settings.RainFallSpeed:F1}x";
 
             _settings.LeafCount = (int)SliderLeafCount.Value;
-            TxtLeafCount.Text = $"{_settings.LeafCount} db";
+            TxtLeafCount.Text = CountText(_settings.LeafCount);
 
             _settings.LeafFallSpeed = SliderLeafSpeed.Value;
             TxtLeafSpeed.Text = $"{_settings.LeafFallSpeed:F1}x";
@@ -334,6 +512,9 @@ namespace WinterTray.UI
             _settings.MouseSweepSnow = def.MouseSweepSnow;
 
             _settings.AccumulateOnWindows = def.AccumulateOnWindows;
+            _settings.SnowOverhang = def.SnowOverhang;
+            _settings.ShowIcicles = def.ShowIcicles;
+            _settings.IcicleDensity = def.IcicleDensity;
             _settings.AccumulateOnTaskbar = def.AccumulateOnTaskbar;
             _settings.AccumulationSpeed = def.AccumulationSpeed;
             _settings.LimitSnowHeight = def.LimitSnowHeight;

@@ -19,6 +19,12 @@ namespace WinterTray
 
         public int ConfigVersion { get; set; } = 0;
 
+        // ---- Nyelv / Language ("en" = English, "hu" = Magyar) ----
+        public string Language { get; set; } = "en";
+
+        [JsonIgnore]
+        public bool IsHungarian => string.Equals(Language, "hu", StringComparison.OrdinalIgnoreCase);
+
         // ---- Évszak választás ----
         public AppSeason Season { get; set; } = AppSeason.Winter;
 
@@ -94,6 +100,10 @@ namespace WinterTray
                     var settings = JsonSerializer.Deserialize<Settings>(json);
                     if (settings != null && settings.ConfigVersion >= 5)
                     {
+                        if (string.IsNullOrWhiteSpace(settings.Language))
+                        {
+                            settings.Language = "en";
+                        }
                         settings.StartWithWindows = IsAutoStartEnabled();
                         return settings;
                     }

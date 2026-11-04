@@ -1,7 +1,7 @@
 <Window x:Class="WinterTray.UI.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="WinterTray - Beállítások"
+        Title="WinterTray - Settings"
         Height="820" Width="560"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanMinimize"
@@ -102,47 +102,60 @@
 
         <!-- FEJLÉC -->
         <DockPanel Grid.Row="0" Margin="0,0,0,16">
-            <Button DockPanel.Dock="Right" Content="💬 Értékelés &amp; Hibák" Style="{StaticResource StandardButton}" 
-                    VerticalAlignment="Center" Click="OnFeedbackClicked" Cursor="Hand" ToolTip="Kérdőív és hibabejelentő megnyitása" />
+            <Button Name="BtnFeedback" DockPanel.Dock="Right" Content="💬 Feedback &amp; Bugs" Style="{StaticResource StandardButton}" 
+                    VerticalAlignment="Center" Click="OnFeedbackClicked" Cursor="Hand" ToolTip="Open feedback and bug report form" />
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Name="TxtHeaderIcon" Text="❄" FontSize="26" Foreground="#60CDFF" VerticalAlignment="Center" Margin="0,0,10,0" />
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="WinterTray" FontSize="20" FontWeight="Bold" Foreground="#FFFFFF" />
-                    <TextBlock Name="TxtHeaderDesc" Text="Téli hóesés és őszi falevelek az asztalodon" FontSize="12" Foreground="#AAAAAA" />
+                    <TextBlock Name="TxtHeaderDesc" Text="Winter snowfall and autumn leaves on your desktop" FontSize="12" Foreground="#AAAAAA" />
                 </StackPanel>
             </StackPanel>
         </DockPanel>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,-8,0" Padding="0,0,8,0">
             <StackPanel>
-                <!-- ÉVSZAK VÁLASZTÓ KÁRTYA -->
-                <TextBlock Text="ÉVSZAK ÉS TÉMA VÁLASZTÁSA" Style="{StaticResource SectionHeader}" />
+                <!-- ÉVSZAK ÉS NYELV VÁLASZTÓ KÁRTYÁK -->
+                <TextBlock Name="TxtSecSeason" Text="SEASON, THEME &amp; LANGUAGE" Style="{StaticResource SectionHeader}" />
                 <Border Style="{StaticResource SettingCard}" Background="#242B35" BorderBrush="#3B485A">
                     <DockPanel>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="Aktuális évszak" FontWeight="SemiBold" Foreground="#FFFFFF" FontSize="14" />
-                            <TextBlock Text="Válts azonnal a téli hóesés és az őszi falevelek között" FontSize="11" Foreground="#9BA5B5" />
+                            <TextBlock Name="TxtSeasonTitle" Text="Current season" FontWeight="SemiBold" Foreground="#FFFFFF" FontSize="14" />
+                            <TextBlock Name="TxtSeasonSub" Text="Switch instantly between winter snowfall and autumn leaves" FontSize="11" Foreground="#9BA5B5" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                            <RadioButton Name="RbSeasonWinter" Content="❄ Tél" GroupName="SeasonGroup" 
+                            <RadioButton Name="RbSeasonWinter" Content="❄ Winter" GroupName="SeasonGroup" 
                                          FontWeight="SemiBold" Foreground="#60CDFF" Margin="0,0,18,0" Checked="OnSeasonChanged" />
-                            <RadioButton Name="RbSeasonAutumn" Content="🍂 Ősz" GroupName="SeasonGroup" 
+                            <RadioButton Name="RbSeasonAutumn" Content="🍂 Autumn" GroupName="SeasonGroup" 
                                          FontWeight="SemiBold" Foreground="#FFA726" Checked="OnSeasonChanged" />
                         </StackPanel>
                     </DockPanel>
                 </Border>
 
+                <Border Style="{StaticResource SettingCard}" Background="#242B35" BorderBrush="#3B485A">
+                    <DockPanel>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Name="TxtLangTitle" Text="Language" FontWeight="SemiBold" Foreground="#FFFFFF" FontSize="14" />
+                            <TextBlock Name="TxtLangSub" Text="Select the application interface language" FontSize="11" Foreground="#9BA5B5" />
+                        </StackPanel>
+                        <ComboBox Name="CmbLanguage" Width="160" HorizontalAlignment="Right" VerticalAlignment="Center" SelectionChanged="OnLanguageChanged">
+                            <ComboBoxItem Name="CmbLangEn" Content="English" IsSelected="True" />
+                            <ComboBoxItem Name="CmbLangHu" Content="Magyar" />
+                        </ComboBox>
+                    </DockPanel>
+                </Border>
+
                 <!-- ==================== TÉLI BEÁLLÍTÁSOK ==================== -->
                 <StackPanel Name="PanelWinter">
-                    <TextBlock Text="❄ TÉLI HÓESÉS ÉS MEGJELENÉS" Style="{StaticResource SectionHeader}" />
+                    <TextBlock Name="TxtSecWinterVisual" Text="❄ WINTER SNOWFALL &amp; APPEARANCE" Style="{StaticResource SectionHeader}" />
 
                     <Border Style="{StaticResource SettingCard}">
                         <DockPanel>
-                            <TextBlock Text="Hópelyhek stílusa" VerticalAlignment="Center" Foreground="#E0E0E0" FontWeight="Medium" />
+                            <TextBlock Name="TxtFlakeStyleLabel" Text="Snowflake style" VerticalAlignment="Center" Foreground="#E0E0E0" FontWeight="Medium" />
                             <ComboBox Name="CmbStyle" Width="200" HorizontalAlignment="Right" SelectionChanged="OnSettingChanged">
-                                <ComboBoxItem Content="Vegyes (kristály + bolyhos)" IsSelected="True" />
-                                <ComboBoxItem Content="Lágy, bolyhos pelyhek" />
-                                <ComboBoxItem Content="Részletes jégkristályok" />
+                                <ComboBoxItem Name="CmbStyleMixed" Content="Mixed (crystals + fluffy)" IsSelected="True" />
+                                <ComboBoxItem Name="CmbStyleFluffy" Content="Soft, fluffy flakes" />
+                                <ComboBoxItem Name="CmbStyleCrystal" Content="Detailed ice crystals" />
                             </ComboBox>
                         </DockPanel>
                     </Border>
@@ -150,8 +163,8 @@
                     <Border Style="{StaticResource SettingCard}">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="Hópelyhek száma" Foreground="#E0E0E0" FontWeight="Medium" />
-                                <TextBlock Name="TxtFlakeCount" Text="200 db" Foreground="#60CDFF" HorizontalAlignment="Right" />
+                                <TextBlock Name="TxtFlakeCountLabel" Text="Snowflake count" Foreground="#E0E0E0" FontWeight="Medium" />
+                                <TextBlock Name="TxtFlakeCount" Text="200" Foreground="#60CDFF" HorizontalAlignment="Right" />
                             </DockPanel>
                             <Slider Name="SliderFlakeCount" Minimum="30" Maximum="500" SmallChange="10" LargeChange="50" ValueChanged="OnSettingChanged" />
                         </StackPanel>
@@ -160,7 +173,7 @@
                     <Border Style="{StaticResource SettingCard}">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="Esési sebesség" Foreground="#E0E0E0" FontWeight="Medium" />
+                                <TextBlock Name="TxtFallSpeedLabel" Text="Fall speed" Foreground="#E0E0E0" FontWeight="Medium" />
                                 <TextBlock Name="TxtFallSpeed" Text="1.0x" Foreground="#60CDFF" HorizontalAlignment="Right" />
                             </DockPanel>
                             <Slider Name="SliderFallSpeed" Minimum="0.3" Maximum="2.5" ValueChanged="OnSettingChanged" />
@@ -170,7 +183,7 @@
                     <Border Style="{StaticResource SettingCard}">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="Természetes szél (negatív = balra)" Foreground="#E0E0E0" FontWeight="Medium" />
+                                <TextBlock Name="TxtWindLabel" Text="Natural wind (negative = left)" Foreground="#E0E0E0" FontWeight="Medium" />
                                 <TextBlock Name="TxtWind" Text="0.3" Foreground="#60CDFF" HorizontalAlignment="Right" />
                             </DockPanel>
                             <Slider Name="SliderWind" Minimum="-1.5" Maximum="1.5" ValueChanged="OnSettingChanged" />
@@ -180,31 +193,31 @@
                     <Border Style="{StaticResource SettingCard}">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="Hópelyhek mérete" Foreground="#E0E0E0" FontWeight="Medium" />
+                                <TextBlock Name="TxtSizeLabel" Text="Snowflake size" Foreground="#E0E0E0" FontWeight="Medium" />
                                 <TextBlock Name="TxtSize" Text="2.3 - 6.0 px" Foreground="#60CDFF" HorizontalAlignment="Right" />
                             </DockPanel>
                             <Slider Name="SliderSize" Minimum="3" Maximum="10" ValueChanged="OnSettingChanged" />
                         </StackPanel>
                     </Border>
 
-                    <TextBlock Text="❄ TÉLI HÓFELHALMOZÓDÁS ÉS ABLAKOK" Style="{StaticResource SectionHeader}" />
+                    <TextBlock Name="TxtSecWinterWindows" Text="❄ SNOW ACCUMULATION &amp; WINDOWS" Style="{StaticResource SectionHeader}" />
 
                     <Border Style="{StaticResource SettingCard}">
-                        <CheckBox Name="ChkAccumulate" Content="A hó megül a szabadon álló ablakok tetején" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                        <CheckBox Name="ChkAccumulate" Content="Snow accumulates on top of floating windows" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                     </Border>
 
                     <Border Style="{StaticResource SettingCard}">
-                        <CheckBox Name="ChkSnowOverhang" Content="A hóréteg finoman ráhajoljon az ablak fejlécére (2-4 px puha perem)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                        <CheckBox Name="ChkSnowOverhang" Content="Snow gently overhangs the window title bar (2-4 px soft edge)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                     </Border>
 
                     <Border Style="{StaticResource SettingCard}">
-                        <CheckBox Name="ChkShowIcicles" Content="Jégcsapok az ablakok alján és tetején (kattintással széttörhetőek!)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                        <CheckBox Name="ChkShowIcicles" Content="Icicles on window tops and bottoms (click to shatter!)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                     </Border>
 
                     <Border Style="{StaticResource SettingCard}">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="Jégcsapok sűrűsége" Foreground="#E0E0E0" FontWeight="Medium" />
+                                <TextBlock Name="TxtIcicleDensityLabel" Text="Icicle density" Foreground="#E0E0E0" FontWeight="Medium" />
                                 <TextBlock Name="TxtIcicleDensity" Text="1.0x" Foreground="#60CDFF" HorizontalAlignment="Right" />
                             </DockPanel>
                             <Slider Name="SliderIcicleDensity" Minimum="0.4" Maximum="2.0" SmallChange="0.1" LargeChange="0.2" ValueChanged="OnSettingChanged" />
@@ -212,13 +225,13 @@
                     </Border>
 
                     <Border Style="{StaticResource SettingCard}">
-                        <CheckBox Name="ChkTaskbar" Content="A hó megül a tálca tetején is (alapból a tálca alatt eltűnik)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                        <CheckBox Name="ChkTaskbar" Content="Snow also accumulates on the taskbar (otherwise disappears behind it)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                     </Border>
 
                     <Border Style="{StaticResource SettingCard}">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="Felhalmozódás gyorsasága" Foreground="#E0E0E0" FontWeight="Medium" />
+                                <TextBlock Name="TxtAccumLabel" Text="Accumulation speed" Foreground="#E0E0E0" FontWeight="Medium" />
                                 <TextBlock Name="TxtAccum" Text="0.20x" Foreground="#60CDFF" HorizontalAlignment="Right" />
                             </DockPanel>
                             <Slider Name="SliderAccum" Minimum="0.05" Maximum="2.0" SmallChange="0.05" LargeChange="0.2" ValueChanged="OnSettingChanged" />
@@ -228,10 +241,10 @@
                     <Border Style="{StaticResource SettingCard}">
                         <StackPanel>
                             <DockPanel Margin="0,0,0,6">
-                                <TextBlock Text="Hóréteg maximális vastagsága" Foreground="#E0E0E0" FontWeight="Medium" VerticalAlignment="Center" />
+                                <TextBlock Name="TxtMaxHeightLabel" Text="Maximum snow thickness" Foreground="#E0E0E0" FontWeight="Medium" VerticalAlignment="Center" />
                                 <TextBlock Name="TxtMaxHeight" Text="22 px" Foreground="#60CDFF" HorizontalAlignment="Right" VerticalAlignment="Center" />
                             </DockPanel>
-                            <CheckBox Name="ChkLimitMaxHeight" Content="Vastagság korlátozása (kikapcsolva a hóréteg korlátlanul nőhet)" 
+                            <CheckBox Name="ChkLimitMaxHeight" Content="Limit thickness (when unchecked, snow can grow infinitely)" 
                                       Margin="0,0,0,6" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                             <Slider Name="SliderMaxHeight" Minimum="6" Maximum="60" ValueChanged="OnSettingChanged" />
                         </StackPanel>
@@ -240,31 +253,31 @@
                     <Border Style="{StaticResource SettingCard}">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="Olvadási idő (0 = nem olvad el)" Foreground="#E0E0E0" FontWeight="Medium" />
-                                <TextBlock Name="TxtMeltRate" Text="soha" Foreground="#60CDFF" HorizontalAlignment="Right" />
+                                <TextBlock Name="TxtMeltRateLabel" Text="Melting time (0 = never melts)" Foreground="#E0E0E0" FontWeight="Medium" />
+                                <TextBlock Name="TxtMeltRate" Text="never" Foreground="#60CDFF" HorizontalAlignment="Right" />
                             </DockPanel>
                             <Slider Name="SliderMeltRate" Minimum="0" Maximum="300" SmallChange="5" LargeChange="30" ValueChanged="OnSettingChanged" />
                         </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource SettingCard}">
-                        <CheckBox Name="ChkFallOff" Content="A hó lezúdul, ha az ablakot elmozgatod, bezárod vagy kicsinyíted" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                        <CheckBox Name="ChkFallOff" Content="Snow falls off when a window is moved, closed, or minimized" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                     </Border>
                 </StackPanel>
 
                 <!-- ==================== ŐSZI BEÁLLÍTÁSOK ==================== -->
                 <StackPanel Name="PanelAutumn" Visibility="Collapsed">
-                    <TextBlock Text="🍂 ŐSZI ESŐZÉS ÉS CSOBBANÁSOK" Style="{StaticResource SectionHeader}" Foreground="#60CDFF" />
+                    <TextBlock Name="TxtSecAutumnRain" Text="🍂 AUTUMN RAIN &amp; SPLASHES" Style="{StaticResource SectionHeader}" Foreground="#60CDFF" />
 
                     <Border Style="{StaticResource SettingCard}">
-                        <CheckBox Name="ChkRain" Content="Őszi esőzés bekapcsolása (valósághű esőcsíkok és csobbanások az ablakokon)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                        <CheckBox Name="ChkRain" Content="Enable autumn rain (realistic rain streaks and splashes on windows)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                     </Border>
 
                     <Border Style="{StaticResource SettingCard}">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="Esőcseppek száma" Foreground="#E0E0E0" FontWeight="Medium" />
-                                <TextBlock Name="TxtRainCount" Text="220 db" Foreground="#60CDFF" HorizontalAlignment="Right" />
+                                <TextBlock Name="TxtRainCountLabel" Text="Raindrop count" Foreground="#E0E0E0" FontWeight="Medium" />
+                                <TextBlock Name="TxtRainCount" Text="220" Foreground="#60CDFF" HorizontalAlignment="Right" />
                             </DockPanel>
                             <Slider Name="SliderRainCount" Minimum="40" Maximum="450" SmallChange="10" LargeChange="50" ValueChanged="OnSettingChanged" />
                         </StackPanel>
@@ -273,20 +286,20 @@
                     <Border Style="{StaticResource SettingCard}">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="Eső esési sebessége" Foreground="#E0E0E0" FontWeight="Medium" />
+                                <TextBlock Name="TxtRainSpeedLabel" Text="Rain fall speed" Foreground="#E0E0E0" FontWeight="Medium" />
                                 <TextBlock Name="TxtRainSpeed" Text="1.0x" Foreground="#60CDFF" HorizontalAlignment="Right" />
                             </DockPanel>
                             <Slider Name="SliderRainSpeed" Minimum="0.5" Maximum="2.0" ValueChanged="OnSettingChanged" />
                         </StackPanel>
                     </Border>
 
-                    <TextBlock Text="🍂 ŐSZI FALEVELEK ÉS ABLAKOK" Style="{StaticResource SectionHeader}" Foreground="#FFA726" />
+                    <TextBlock Name="TxtSecAutumnLeaves" Text="🍂 AUTUMN LEAVES &amp; WINDOWS" Style="{StaticResource SectionHeader}" Foreground="#FFA726" />
 
                     <Border Style="{StaticResource SettingCard}">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="Szálló falevelek száma (nagyon ritka, finom hullás)" Foreground="#E0E0E0" FontWeight="Medium" />
-                                <TextBlock Name="TxtLeafCount" Text="7 db" Foreground="#FFA726" HorizontalAlignment="Right" />
+                                <TextBlock Name="TxtLeafCountLabel" Text="Falling leaves count (sparse, gentle fall)" Foreground="#E0E0E0" FontWeight="Medium" />
+                                <TextBlock Name="TxtLeafCount" Text="7" Foreground="#FFA726" HorizontalAlignment="Right" />
                             </DockPanel>
                             <Slider Name="SliderLeafCount" Minimum="1" Maximum="25" SmallChange="1" LargeChange="5" ValueChanged="OnSettingChanged" />
                         </StackPanel>
@@ -295,7 +308,7 @@
                     <Border Style="{StaticResource SettingCard}">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="Falevelek esési sebessége" Foreground="#E0E0E0" FontWeight="Medium" />
+                                <TextBlock Name="TxtLeafSpeedLabel" Text="Leaf fall speed" Foreground="#E0E0E0" FontWeight="Medium" />
                                 <TextBlock Name="TxtLeafSpeed" Text="0.9x" Foreground="#FFA726" HorizontalAlignment="Right" />
                             </DockPanel>
                             <Slider Name="SliderLeafSpeed" Minimum="0.3" Maximum="2.5" ValueChanged="OnSettingChanged" />
@@ -305,7 +318,7 @@
                     <Border Style="{StaticResource SettingCard}">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="Természetes szél (negatív = balra)" Foreground="#E0E0E0" FontWeight="Medium" />
+                                <TextBlock Name="TxtLeafWindLabel" Text="Natural wind (negative = left)" Foreground="#E0E0E0" FontWeight="Medium" />
                                 <TextBlock Name="TxtLeafWind" Text="0.3" Foreground="#FFA726" HorizontalAlignment="Right" />
                             </DockPanel>
                             <Slider Name="SliderLeafWind" Minimum="-1.5" Maximum="1.5" ValueChanged="OnSettingChanged" />
@@ -315,7 +328,7 @@
                     <Border Style="{StaticResource SettingCard}">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="Falevelek mérete" Foreground="#E0E0E0" FontWeight="Medium" />
+                                <TextBlock Name="TxtLeafSizeLabel" Text="Leaf size" Foreground="#E0E0E0" FontWeight="Medium" />
                                 <TextBlock Name="TxtLeafSize" Text="18 px" Foreground="#FFA726" HorizontalAlignment="Right" />
                             </DockPanel>
                             <Slider Name="SliderLeafSize" Minimum="12" Maximum="32" ValueChanged="OnSettingChanged" />
@@ -323,18 +336,18 @@
                     </Border>
 
                     <Border Style="{StaticResource SettingCard}">
-                        <CheckBox Name="ChkLeafAccumulate" Content="A levelek ráfekszenek a szabad ablakok tetejére" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                        <CheckBox Name="ChkLeafAccumulate" Content="Leaves rest on top of floating windows" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                     </Border>
 
                     <Border Style="{StaticResource SettingCard}">
-                        <CheckBox Name="ChkLeafTaskbar" Content="A levelek és az eső a tálca tetején is megülnek/csobbannak (kikapcsolva a tálca mögé esnek)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                        <CheckBox Name="ChkLeafTaskbar" Content="Leaves and rain also land/splash on the taskbar (otherwise fall behind it)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                     </Border>
 
                     <Border Style="{StaticResource SettingCard}">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="Megült levelek élettartama (0 = soha nem tűnnek el)" Foreground="#E0E0E0" FontWeight="Medium" />
-                                <TextBlock Name="TxtLeafLife" Text="120 mp (2 perc)" Foreground="#FFA726" HorizontalAlignment="Right" />
+                                <TextBlock Name="TxtLeafLifeLabel" Text="Rested leaf lifetime (0 = never disappears)" Foreground="#E0E0E0" FontWeight="Medium" />
+                                <TextBlock Name="TxtLeafLife" Text="120 s (2 min)" Foreground="#FFA726" HorizontalAlignment="Right" />
                             </DockPanel>
                             <Slider Name="SliderLeafLife" Minimum="0" Maximum="300" SmallChange="10" LargeChange="30" ValueChanged="OnSettingChanged" />
                         </StackPanel>
@@ -342,16 +355,16 @@
                 </StackPanel>
 
                 <!-- ==================== EGÉR ÉS INTERAKCIÓ ==================== -->
-                <TextBlock Text="EGÉRMUTATÓ ÉS INTERAKCIÓ" Style="{StaticResource SectionHeader}" />
+                <TextBlock Name="TxtSecMouse" Text="MOUSE CURSOR &amp; INTERACTION" Style="{StaticResource SectionHeader}" />
 
                 <Border Style="{StaticResource SettingCard}">
-                    <CheckBox Name="ChkMouseRepel" Content="Az egér elfújja a hulló részecskéket (szélörvény)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                    <CheckBox Name="ChkMouseRepel" Content="Mouse cursor blows away falling particles (wind vortex)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                 </Border>
 
                 <Border Style="{StaticResource SettingCard}">
                     <StackPanel>
                         <DockPanel>
-                            <TextBlock Text="Szél erőssége" Foreground="#E0E0E0" FontWeight="Medium" />
+                            <TextBlock Name="TxtMousePowerLabel" Text="Wind power" Foreground="#E0E0E0" FontWeight="Medium" />
                             <TextBlock Name="TxtMousePower" Text="1.0x" Foreground="#60CDFF" HorizontalAlignment="Right" />
                         </DockPanel>
                         <Slider Name="SliderMousePower" Minimum="0.2" Maximum="3.0" ValueChanged="OnSettingChanged" />
@@ -361,7 +374,7 @@
                 <Border Style="{StaticResource SettingCard}">
                     <StackPanel>
                         <DockPanel>
-                            <TextBlock Text="Sebesség-érzékenység (gyorsabb egér = nagyobb hatás)" Foreground="#E0E0E0" FontWeight="Medium" />
+                            <TextBlock Name="TxtMouseSensLabel" Text="Speed sensitivity (faster mouse = stronger effect)" Foreground="#E0E0E0" FontWeight="Medium" />
                             <TextBlock Name="TxtMouseSens" Text="1.0x" Foreground="#60CDFF" HorizontalAlignment="Right" />
                         </DockPanel>
                         <Slider Name="SliderMouseSens" Minimum="0.0" Maximum="3.0" ValueChanged="OnSettingChanged" />
@@ -371,7 +384,7 @@
                 <Border Style="{StaticResource SettingCard}">
                     <StackPanel>
                         <DockPanel>
-                            <TextBlock Text="Alap hatótávolság" Foreground="#E0E0E0" FontWeight="Medium" />
+                            <TextBlock Name="TxtMouseRadiusLabel" Text="Base effect radius" Foreground="#E0E0E0" FontWeight="Medium" />
                             <TextBlock Name="TxtMouseRadius" Text="90 px" Foreground="#60CDFF" HorizontalAlignment="Right" />
                         </DockPanel>
                         <Slider Name="SliderMouseRadius" Minimum="40" Maximum="250" ValueChanged="OnSettingChanged" />
@@ -379,45 +392,45 @@
                 </Border>
 
                 <Border Style="{StaticResource SettingCard}">
-                    <CheckBox Name="ChkSweep" Content="Egérrel lesöpörhető hó és lerepíthető falevelek az ablakokról" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                    <CheckBox Name="ChkSweep" Content="Sweep snow and blow leaves off windows with the mouse cursor" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                 </Border>
 
                 <!-- ==================== TELJESÍTMÉNY ÉS RENDSZER ==================== -->
-                <TextBlock Text="TELJESÍTMÉNY ÉS RENDSZER" Style="{StaticResource SectionHeader}" />
+                <TextBlock Name="TxtSecSystem" Text="PERFORMANCE &amp; SYSTEM" Style="{StaticResource SectionHeader}" />
 
                 <Border Style="{StaticResource SettingCard}">
                     <DockPanel>
-                        <TextBlock Text="Képfrissítés (FPS)" VerticalAlignment="Center" Foreground="#E0E0E0" FontWeight="Medium" />
+                        <TextBlock Name="TxtFpsLabel" Text="Frame rate (FPS)" VerticalAlignment="Center" Foreground="#E0E0E0" FontWeight="Medium" />
                         <ComboBox Name="CmbFps" Width="240" HorizontalAlignment="Right" SelectionChanged="OnSettingChanged">
-                            <ComboBoxItem Content="Monitor Natív (VSync / 120+ FPS)" IsSelected="True" />
-                            <ComboBoxItem Content="120 FPS (Szuper sima)" />
-                            <ComboBoxItem Content="60 FPS (Alapértelmezett)" />
-                            <ComboBoxItem Content="30 FPS (Kímélő mód)" />
+                            <ComboBoxItem Name="CmbFpsNative" Content="Monitor Native (VSync / 120+ FPS)" IsSelected="True" />
+                            <ComboBoxItem Name="CmbFps120" Content="120 FPS (Super smooth)" />
+                            <ComboBoxItem Name="CmbFps60" Content="60 FPS (Default)" />
+                            <ComboBoxItem Name="CmbFps30" Content="30 FPS (Power saving)" />
                         </ComboBox>
                     </DockPanel>
                 </Border>
 
                 <Border Style="{StaticResource SettingCard}">
                     <DockPanel>
-                        <TextBlock Text="Effektek és animációk minősége" VerticalAlignment="Center" Foreground="#E0E0E0" FontWeight="Medium" />
+                        <TextBlock Name="TxtAnimQualityLabel" Text="Effects &amp; animation quality" VerticalAlignment="Center" Foreground="#E0E0E0" FontWeight="Medium" />
                         <ComboBox Name="CmbAnimQuality" Width="240" HorizontalAlignment="Right" SelectionChanged="OnSettingChanged">
-                            <ComboBoxItem Content="Teljes / Ultra (120 FPS sima részecskék)" IsSelected="True" />
-                            <ComboBoxItem Content="Közepes (Kiegyensúlyozott)" />
-                            <ComboBoxItem Content="Kikapcsolva (Gyenge gépekre)" />
+                            <ComboBoxItem Name="CmbQualityUltra" Content="Full / Ultra (120 FPS smooth particles)" IsSelected="True" />
+                            <ComboBoxItem Name="CmbQualityMed" Content="Medium (Balanced)" />
+                            <ComboBoxItem Name="CmbQualityLow" Content="Off (Low-end PCs)" />
                         </ComboBox>
                     </DockPanel>
                 </Border>
 
                 <Border Style="{StaticResource SettingCard}">
-                    <CheckBox Name="ChkPauseCovered" Content="Szünet, ha ablakok teljesen eltakarják az asztalt (nulla terhelés)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                    <CheckBox Name="ChkPauseCovered" Content="Pause when windows completely cover the desktop (zero load)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                 </Border>
 
                 <Border Style="{StaticResource SettingCard}">
-                    <CheckBox Name="ChkAutoStart" Content="Automatikus indulás a Windows indításakor" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                    <CheckBox Name="ChkAutoStart" Content="Start automatically with Windows" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                 </Border>
 
                 <Border Style="{StaticResource SettingCard}">
-                    <CheckBox Name="ChkUseWallpaper" Content="Szezonális háttérkép beállítása (Tél: wallpaper.jpeg, Ősz: wallpaper-fall.jpeg)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                    <CheckBox Name="ChkUseWallpaper" Content="Set seasonal desktop wallpaper (Winter: wallpaper.jpeg, Autumn: wallpaper-fall.jpeg)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                 </Border>
             </StackPanel>
         </ScrollViewer>
@@ -425,9 +438,9 @@
         <!-- LÁBLÉC GOMBOK -->
         <Border Grid.Row="2" Margin="0,16,0,0" Padding="0,10,0,0" BorderBrush="#383838" BorderThickness="0,1,0,0">
             <DockPanel>
-                <Button Name="BtnClear" Content="Hó letakarítása" Style="{StaticResource StandardButton}" Click="OnClearClicked" Margin="0,0,8,0" />
-                <Button Content="Alaphelyzet" Style="{StaticResource StandardButton}" Click="OnResetDefaultsClicked" Margin="0,0,8,0" />
-                <Button Content="Mentés és bezárás" Style="{StaticResource AccentButton}" HorizontalAlignment="Right" Click="OnSaveClicked" />
+                <Button Name="BtnClear" Content="Clear snow" Style="{StaticResource StandardButton}" Click="OnClearClicked" Margin="0,0,8,0" />
+                <Button Name="BtnReset" Content="Reset defaults" Style="{StaticResource StandardButton}" Click="OnResetDefaultsClicked" Margin="0,0,8,0" />
+                <Button Name="BtnSave" Content="Save &amp; Close" Style="{StaticResource AccentButton}" HorizontalAlignment="Right" Click="OnSaveClicked" />
             </DockPanel>
         </Border>
     </Grid>

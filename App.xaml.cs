@@ -20,9 +20,12 @@ namespace WinterTray
         private SettingsWindow? _settingsWindow;
         private ToolStripMenuItem? _titleItem;
         private ToolStripMenuItem? _seasonMenuItem;
+        private ToolStripMenuItem? _settingsMenuItem;
+        private ToolStripMenuItem? _feedbackMenuItem;
         private ToolStripMenuItem? _clearMenuItem;
         private ToolStripMenuItem? _pauseMenuItem;
         private ToolStripMenuItem? _autoStartMenuItem;
+        private ToolStripMenuItem? _exitMenuItem;
         private bool _selfTest;
 
         protected override void OnStartup(StartupEventArgs e)
@@ -39,11 +42,15 @@ namespace WinterTray
 
             if (!_selfTest)
             {
+                _settings = Settings.Load();
                 _mutex = new Mutex(true, "WinterTray_SingleInstance_Mutex", out bool isNewInstance);
                 if (!isNewInstance)
                 {
+                    bool hu = _settings.IsHungarian;
                     MessageBox.Show(
-                        "A WinterTray már fut a háttérben (nézd meg a tálca értesítési területét).",
+                        hu
+                            ? "A WinterTray már fut a háttérben (nézd meg a tálca értesítési területét)."
+                            : "WinterTray is already running in the background (check the system tray notification area).",
                         "WinterTray", MessageBoxButton.OK, MessageBoxImage.Information);
                     Shutdown();
                     return;
@@ -67,7 +74,7 @@ namespace WinterTray
                 return;
             }
 
-            _settings = Settings.Load();
+            _settings ??= Settings.Load();
             if (_settings.UseSeasonalWallpaper)
             {
                 WallpaperManager.ApplyWallpaper(_settings.Season);
@@ -85,33 +92,33 @@ namespace WinterTray
             var menu = new ContextMenuStrip();
 
             _titleItem = new ToolStripMenuItem("❄ WinterTray") { Enabled = false };
-            _seasonMenuItem = new ToolStripMenuItem("Váltás őszi módra 🍂", null, (s, e) => ToggleSeason());
-            var settingsItem = new ToolStripMenuItem("Beállítások...", null, (s, e) => OpenSettings());
-            settingsItem.Font = new Font(settingsItem.Font, System.Drawing.FontStyle.Bold);
+            _seasonMenuItem = new ToolStripMenuItem("Switch to Autumn mode 🍂", null, (s, e) => ToggleSeason());
+            _settingsMenuItem = new ToolStripMenuItem("Settings...", null, (s, e) => OpenSettings());
+            _settingsMenuItem.Font = new Font(_settingsMenuItem.Font, System.Drawing.FontStyle.Bold);
 
-            var feedbackItem = new ToolStripMenuItem("Értékelés és hibabejelentés... 💬", null, (s, e) => OpenFeedbackUrl());
+            _feedbackMenuItem = new ToolStripMenuItem("Feedback & Bug Report... 💬", null, (s, e) => OpenFeedbackUrl());
 
-            _pauseMenuItem = new ToolStripMenuItem("Szüneteltetés", null, (s, e) => TogglePause());
-            _clearMenuItem = new ToolStripMenuItem("Hó letakarítása", null, (s, e) => _overlay?.ClearSnow());
+            _pauseMenuItem = new ToolStripMenuItem("Pause", null, (s, e) => TogglePause());
+            _clearMenuItem = new ToolStripMenuItem("Clear snow", null, (s, e) => _overlay?.ClearSnow());
 
-            _autoStartMenuItem = new ToolStripMenuItem("Indulás a Windowszal", null, (s, e) => ToggleAutoStart())
+            _autoStartMenuItem = new ToolStripMenuItem("Start with Windows", null, (s, e) => ToggleAutoStart())
             {
                 Checked = _settings?.StartWithWindows ?? false
             };
 
-            var exitItem = new ToolStripMenuItem("Kilépés", null, (s, e) => ExitApp());
+            _exitMenuItem = new ToolStripMenuItem("Exit", null, (s, e) => ExitApp());
 
             menu.Items.Add(_titleItem);
             menu.Items.Add(_seasonMenuItem);
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(settingsItem);
-            menu.Items.Add(feedbackItem);
+            menu.Items.Add(_settingsMenuItem);
+            menu.Items.Add(_feedbackMenuItem);
             menu.Items.Add(_pauseMenuItem);
             menu.Items.Add(_clearMenuItem);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(_autoStartMenuItem);
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(exitItem);
+            menu.Items.Add(_exitMenuItem);
 
             Icon appIcon = SystemIcons.Application;
             try
@@ -140,15 +147,45 @@ namespace WinterTray
         {
             if (_settings == null || _trayIcon == null) return;
 
+            bool hu = _settings.IsHungarian;
             bool isAutumn = _settings.Season == Engine.AppSeason.Autumn;
-            if (_titleItem != null)
-                _titleItem.Text = isAutumn ? "🍂 WinterTray (Ősz)" : "❄ WinterTray (Tél)";
-            if (_seasonMenuItem != null)
-                _seasonMenuItem.Text = isAutumn ? "Váltás téli módra ❄" : "Váltás őszi módra 🍂";
-            if (_clearMenuItem != null)
-                _clearMenuItem.Text = isAutumn ? "Levelek lesöprése" : "Hó letakarítása";
+            bool paused = _overlay?.IsPaused ?? false;
 
-            _trayIcon.Text = isAutumn ? "WinterTray - Őszi falevelek" : "WinterTray - Téli hóesés";
+            if (_titleItem != null)
+                _titleItem.Text = hu
+                    ? (isAutumn ? "🍂 WinterTray (Ősz)" : "❄ WinterTray (Tél)")
+                    : (isAutumn ? "🍂 WinterTray (Autumn)" : "❄ WinterTray (Winter)");
+
+            if (_seasonMenuItem != null)
+                _seasonMenuItem.Text = hu
+                    ? (isAutumn ? "Váltás téli módra ❄" : "Váltás őszi módra 🍂")
+                    : (isAutumn ? "Switch to Winter mode ❄" : "Switch to Autumn mode 🍂");
+
+            if (_settingsMenuItem != null)
+                _settingsMenuItem.Text = hu ? "Beállítások..." : "Settings...";
+
+            if (_feedbackMenuItem != null)
+                _feedbackMenuItem.Text = hu ? "Értékelés és hibabejelentés... 💬" : "Feedback & Bug Report... 💬";
+
+            if (_pauseMenuItem != null)
+                _pauseMenuItem.Text = hu
+                    ? (paused ? "Folytatás" : "Szüneteltetés")
+                    : (paused ? "Resume" : "Pause");
+
+            if (_clearMenuItem != null)
+                _clearMenuItem.Text = hu
+                    ? (isAutumn ? "Levelek lesöprése" : "Hó letakarítása")
+                    : (isAutumn ? "Sweep leaves" : "Clear snow");
+
+            if (_autoStartMenuItem != null)
+                _autoStartMenuItem.Text = hu ? "Indulás a Windowszal" : "Start with Windows";
+
+            if (_exitMenuItem != null)
+                _exitMenuItem.Text = hu ? "Kilépés" : "Exit";
+
+            _trayIcon.Text = hu
+                ? (isAutumn ? "WinterTray - Őszi falevelek" : "WinterTray - Téli hóesés")
+                : (isAutumn ? "WinterTray - Autumn Falling Leaves" : "WinterTray - Winter Snowfall");
         }
 
         private void ToggleSeason()
@@ -208,7 +245,7 @@ namespace WinterTray
             if (_overlay == null || _pauseMenuItem == null) return;
             bool paused = !_overlay.IsPaused;
             _overlay.SetPaused(paused);
-            _pauseMenuItem.Text = paused ? "Folytatás" : "Szüneteltetés";
+            UpdateTrayState();
         }
 
         private void ToggleAutoStart()
