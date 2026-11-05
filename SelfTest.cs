@@ -156,13 +156,30 @@ namespace WinterTray
             int zeroSkyCount = world.GetActiveFlakeCountForTesting();
             if (zeroSkyCount != 0) throw new Exception($"Expected 0 active flakes for fully covered sky, got {zeroSkyCount}");
 
-            // Test 6: Pausing hides overlay so no frozen flakes appear on newly opened windows
+            // Test 6: Pausing keeps overlay Visible and freezes simulation, while windows are occluded
             var testOverlay = new SnowOverlayWindow(def);
             testOverlay.SetPaused(true);
-            if (testOverlay.Visibility != Visibility.Hidden) throw new Exception("Paused overlay must be Hidden!");
+            if (!testOverlay.IsPaused) throw new Exception("Overlay must be paused!");
+            if (testOverlay.Visibility != Visibility.Visible) throw new Exception("Paused overlay must remain Visible on desktop!");
             testOverlay.SetPaused(false);
-            if (testOverlay.Visibility != Visibility.Visible) throw new Exception("Resumed overlay must be Visible!");
+            if (testOverlay.IsPaused) throw new Exception("Overlay must be unpaused!");
             testOverlay.Close();
+
+            // Test 7: GetGroundY returns working area bottom / taskbar top
+            double gy = world.GetGroundY(500);
+            if (gy != 1040) throw new Exception($"Expected ground Y to be 1040, got {gy}");
+
+            // Test 8: Icicle base Y moves with window height resizing
+            var testBank = new Engine.SnowBank { HWnd = new IntPtr(999) };
+            testBank.UpdateBounds(100, 100, 400, 300, null);
+            testBank.BottomClearance = 100;
+            testBank.BuildForTesting(true, 1.0, 1080);
+            if (testBank.Icicles.Count > 0)
+            {
+                if (testBank.Icicles[0].BaseY != 300) throw new Exception($"Expected icicle baseY 300, got {testBank.Icicles[0].BaseY}");
+                testBank.UpdateBounds(100, 100, 400, 600, null);
+                if (testBank.Icicles[0].BaseY != 600) throw new Exception($"Expected icicle baseY 600 after resize, got {testBank.Icicles[0].BaseY}");
+            }
 
             Console.WriteLine("ALL UNIT TESTS PASSED!");
             File.WriteAllText("wintertray_test.txt", "PASSED");

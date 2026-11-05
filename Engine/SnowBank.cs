@@ -87,6 +87,7 @@ namespace WinterTray.Engine
 
         public readonly List<IcicleData> Icicles = new(48);
         private int _lastIcicleWidth = -1;
+        private int _lastIcicleHeight = -1;
         private double _lastIcicleDensity = -1;
         private int _icicleCounter = 0;
 
@@ -256,6 +257,22 @@ namespace WinterTray.Engine
             Height = newHeight;
             _transform.X = newLeft;
             _transform.Y = newTop;
+
+            if (heightChanged)
+            {
+                for (int i = 0; i < Icicles.Count; i++)
+                {
+                    if (!Icicles[i].IsTop)
+                    {
+                        Icicles[i].BaseY = newHeight;
+                    }
+                }
+                if (BottomClearance < 38.0 && Icicles.Count > 0)
+                {
+                    Icicles.Clear();
+                }
+            }
+
             _dirty = true;
         }
 
@@ -580,12 +597,18 @@ namespace WinterTray.Engine
             }
 
             int wInt = (int)Math.Round(Width);
-            if (wInt == _lastIcicleWidth && Math.Abs(density - _lastIcicleDensity) < 0.05 && Icicles.Count > 0)
+            int hInt = (int)Math.Round(Height);
+            if (wInt == _lastIcicleWidth && hInt == _lastIcicleHeight && Math.Abs(density - _lastIcicleDensity) < 0.05 && Icicles.Count > 0)
             {
+                for (int i = 0; i < Icicles.Count; i++)
+                {
+                    if (!Icicles[i].IsTop) Icicles[i].BaseY = Height;
+                }
                 return;
             }
 
             _lastIcicleWidth = wInt;
+            _lastIcicleHeight = hInt;
             _lastIcicleDensity = density;
             Icicles.Clear();
 
@@ -649,6 +672,8 @@ namespace WinterTray.Engine
                 }
             }
         }
+
+        internal void BuildForTesting(bool showIcicles, double icicleDensity, double screenHeight) => Build(showIcicles, icicleDensity, screenHeight);
 
         private void Build(bool showIcicles, double icicleDensity, double screenHeight)
         {
@@ -988,7 +1013,8 @@ namespace WinterTray.Engine
                     double curLen = ic.CurrentLength;
                     double growRatio = Math.Clamp(curLen / Math.Max(3.0, ic.TargetLength), 0.35, 1.0);
                     double px = ic.RelX;
-                    double py = ic.BaseY;
+                    double py = ic.IsTop ? 0.0 : Height;
+                    ic.BaseY = py;
                     double hw = ic.Width * 0.5 * growRatio;
                     double tipX = px + ic.Slant * growRatio;
                     double tipY = py + curLen;

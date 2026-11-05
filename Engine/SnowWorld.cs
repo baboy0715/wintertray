@@ -830,7 +830,7 @@ namespace WinterTray.Engine
                         }
                     }
                     // Alsó jégcsapról eső csepp: a tálca tetején / képernyő alján eltűnik
-                    else if (!d.FromTop && d.Y >= Height - 42)
+                    else if (!d.FromTop && d.Y >= GetGroundY(d.X))
                     {
                         _droplets.RemoveAt(i--);
                         continue;
@@ -899,6 +899,31 @@ namespace WinterTray.Engine
                     return;
                 }
             }
+        }
+
+        internal double GetGroundY(double x)
+        {
+            // 1. Megnézzük, hogy az adott X koordinátán van-e tálca
+            for (int i = 0; i < _windows.Count; i++)
+            {
+                var w = _windows[i];
+                if (w.IsTaskbar && x >= w.Rect.Left && x <= w.Rect.Right)
+                {
+                    return w.Rect.Top;
+                }
+            }
+
+            // 2. Ha nincs külön tálca ablak ezen a ponton, a képernyő munkaterületének alja
+            for (int s = 0; s < _screens.Count; s++)
+            {
+                var sc = _screens[s];
+                if (x >= sc.Bounds.Left && x <= sc.Bounds.Right)
+                {
+                    return sc.WorkingArea.Bottom;
+                }
+            }
+
+            return Height - 40;
         }
 
         private double GetTotalScreenWorkingWidth()
@@ -972,10 +997,11 @@ namespace WinterTray.Engine
                     continue;
                 }
 
-                // Ha korábban parkolópályán volt, de az égbolt megnyílt:
+                // Ha korábban parkolópályán volt, de az égbolt megnyílt (pl. minimalizálták/bezárták a maximalizált ablakot):
+                // A pelyheket elszórtan a teljes magasságban hozzuk létre (nem pedig egyszerre a felső szélről zuhannak le)
                 if (f.Y <= -9000)
                 {
-                    _flakes[i] = NewFlake(false);
+                    _flakes[i] = NewFlake(true);
                     continue;
                 }
 
@@ -1020,7 +1046,8 @@ namespace WinterTray.Engine
                     continue;
                 }
 
-                if (f.Y > Height + 30 || f.X < -90 || f.X > Width + 90)
+                double groundY = GetGroundY(f.X);
+                if (f.Y >= groundY || f.X < -90 || f.X > Width + 90)
                 {
                     _flakes[i] = RespawnFlake(0);
                 }
@@ -1482,11 +1509,17 @@ namespace WinterTray.Engine
             }
 
             // 2. Részecskék (lavina és söprés) - közvetlen sprite kirajzolás, NULLA PushOpacity / PushTransform
-            // A tálca alatt azonnal eltűnnek, nem látszódnak a tálcán
+            // A tálca és talaj felett lágyan elolvadnak
             for (int i = 0; i < _particleCount; i++)
             {
                 ref readonly var p = ref _particles[i];
-                if (p.Y < -20 || p.Y >= Height - 44 || IsOccluded(p.X, p.Y, p.Size * 1.1)) continue;
+                if (p.Y < -20) continue;
+
+                double groundY = GetGroundY(p.X);
+                double fade = Math.Clamp((groundY - p.Y) / 22.0, 0.0, 1.0);
+                if (fade <= 0.01) continue;
+
+                if (IsOccluded(p.X, p.Y, p.Size * 1.1)) continue;
 
                 double t = p.Age / p.Life;
                 switch (p.Kind)
@@ -1494,7 +1527,7 @@ namespace WinterTray.Engine
                     case ParticleKind.Clump:
                     {
                         double scale = 1.0 - 0.35 * t * t;
-                        double op = t < 0.65 ? 1.0 : 1.0 - (t - 0.65) / 0.35;
+                        double op = (t < 0.65 ? 1.0 : 1.0 - (t - 0.65) / 0.35) * fade;
                         double dia = p.Size * 2.2 * scale;
                         var img = SnowSprites.GetClump(p.Variant, p.Rot, op);
                         dc.DrawImage(img, new Rect(p.X - dia * 0.5, p.Y - dia * 0.5, dia, dia));
@@ -1502,7 +1535,7 @@ namespace WinterTray.Engine
                     }
                     case ParticleKind.Dust:
                     {
-                        double op = (1.0 - t) * 0.8;
+                        double op = (1.0 - t) * 0.8 * fade;
                         double dia = p.Size * 2.0;
                         var img = SnowSprites.GetDust(op);
                         dc.DrawImage(img, new Rect(p.X - dia * 0.5, p.Y - dia * 0.5, dia, dia));
@@ -1510,7 +1543,7 @@ namespace WinterTray.Engine
                     }
                     case ParticleKind.Settle:
                     {
-                        double op = (1.0 - t) * 0.9;
+                        double op = (1.0 - t) * 0.9 * fade;
                         double dia = p.Size * 2.2 * (1.0 - 0.4 * t);
                         var img = SnowSprites.GetPuff(op);
                         dc.DrawImage(img, new Rect(p.X - dia * 0.5, p.Y - dia * 0.5, dia, dia));
@@ -1519,32 +1552,38 @@ namespace WinterTray.Engine
                 }
             }
 
-            // 3. Hulló hópelyhek - a nyitott ablakokra vagy a tálcára nem esik hó (eltűnnek a tálca alatt)
+            // 3. Hulló hópelyhek - a nyitott ablakokra vagy a tálcára nem esik hó (a talaj/tálca felett lágyan elolvadnak)
             for (int i = 0; i < _flakes.Count; i++)
             {
                 var f = _flakes[i];
-                if (f.Y < -20 || f.Y >= Height - 44 || IsOccluded(f.X, f.Y, f.Size * 1.3)) continue;
+                if (f.Y < -20) continue;
+
+                double groundY = GetGroundY(f.X);
+                double fade = Math.Clamp((groundY - f.Y) / 28.0, 0.0, 1.0);
+                if (fade <= 0.01) continue;
+
+                if (IsOccluded(f.X, f.Y, f.Size * 1.3)) continue;
 
                 switch (f.Kind)
                 {
                     case FlakeKind.Dust:
                     {
                         double dia = f.Size * 1.6;
-                        var img = SnowSprites.GetDust(f.Opacity * 0.8);
+                        var img = SnowSprites.GetDust(f.Opacity * 0.8 * fade);
                         dc.DrawImage(img, new Rect(f.X - dia * 0.5, f.Y - dia * 0.5, dia, dia));
                         break;
                     }
                     case FlakeKind.Puff:
                     {
                         double dia = f.Size * 2.6;
-                        var img = SnowSprites.GetPuff(f.Opacity);
+                        var img = SnowSprites.GetPuff(f.Opacity * fade);
                         dc.DrawImage(img, new Rect(f.X - dia * 0.5, f.Y - dia * 0.5, dia, dia));
                         break;
                     }
                     case FlakeKind.Crystal:
                     {
                         double dia = f.Size * 2.6;
-                        var img = SnowSprites.GetCrystal(f.Variant, f.Rot, f.Opacity);
+                        var img = SnowSprites.GetCrystal(f.Variant, f.Rot, f.Opacity * fade);
                         dc.DrawImage(img, new Rect(f.X - dia * 0.5, f.Y - dia * 0.5, dia, dia));
                         break;
                     }
@@ -1557,10 +1596,16 @@ namespace WinterTray.Engine
                 var f = _flakes[i];
                 if (f.Kind == FlakeKind.Bokeh)
                 {
-                    if (f.Y < -20 || f.Y >= Height - 44 || IsOccluded(f.X, f.Y, f.Size * 2.3)) continue;
+                    if (f.Y < -20) continue;
+
+                    double groundY = GetGroundY(f.X);
+                    double fade = Math.Clamp((groundY - f.Y) / 36.0, 0.0, 1.0);
+                    if (fade <= 0.01) continue;
+
+                    if (IsOccluded(f.X, f.Y, f.Size * 2.3)) continue;
 
                     double dia = f.Size * 4.6;
-                    var img = SnowSprites.GetBokeh(f.Opacity * 0.6);
+                    var img = SnowSprites.GetBokeh(f.Opacity * 0.6 * fade);
                     dc.DrawImage(img, new Rect(f.X - dia * 0.5, f.Y - dia * 0.5, dia, dia));
                 }
             }
