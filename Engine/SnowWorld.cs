@@ -407,29 +407,11 @@ namespace WinterTray.Engine
                 10, Math.Min(_flakes.Count, 90));
 
             int reseeded = 0;
-            // 1. lépés: a képernyőn kívül vagy alján járó pelyheket helyezzük át a területre
+            // A képernyőn kívül (pl. várakozó sorban vagy parkolópályán) lévő vagy alsó szélhez ért pelyheket helyezzük át az új területre
             for (int i = 0; i < _flakes.Count && reseeded < targetCount; i++)
             {
                 var f = _flakes[i];
                 if (f.Y > Height - 40 || f.Y < -5 || f.X < -10 || f.X > Width + 10)
-                {
-                    double candX = area.Left + _rnd.NextDouble() * area.Width;
-                    double candY = area.Top + _rnd.NextDouble() * area.Height;
-                    if (IsOccluded(candX, candY, f.Size * 1.3)) continue;
-                    f.X = candX;
-                    f.Y = candY;
-                    f.PrevY = f.Y;
-                    f.Dvx = 0;
-                    f.Dvy = 0;
-                    reseeded++;
-                }
-            }
-
-            // 2. lépés: ha még több pehely kell, a legkevésbé feltűnő (területen kívüli) pelyheket csoportosítjuk át
-            for (int i = 0; i < _flakes.Count && reseeded < targetCount; i++)
-            {
-                var f = _flakes[i];
-                if (!area.Contains(f.X, f.Y))
                 {
                     double candX = area.Left + _rnd.NextDouble() * area.Width;
                     double candY = area.Top + _rnd.NextDouble() * area.Height;
@@ -702,6 +684,14 @@ namespace WinterTray.Engine
             return b;
         }
 
+        internal int GetActiveFlakeCountForTesting()
+        {
+            double totalW = GetTotalScreenWorkingWidth();
+            double openW = GetOpenSkyWidth();
+            double ratio = totalW > 0 ? (openW / totalW) : 1.0;
+            return (int)Math.Round(_s.FlakeCount * Math.Clamp(ratio, 0.0, 1.0));
+        }
+
         public void UpdateWindowsClearance()
         {
             if (_bankList.Count == 0) return;
@@ -911,6 +901,39 @@ namespace WinterTray.Engine
             }
         }
 
+        private double GetTotalScreenWorkingWidth()
+        {
+            if (_screens.Count == 0) return Math.Max(100.0, Width);
+            double total = 0;
+            for (int s = 0; s < _screens.Count; s++)
+            {
+                total += _screens[s].WorkingArea.Width;
+            }
+            return Math.Max(100.0, total);
+        }
+
+        private double GetOpenSkyWidth()
+        {
+            double total = 0;
+            for (int i = 0; i < _openSkyIntervals.Count; i++)
+            {
+                total += Math.Max(0.0, _openSkyIntervals[i].MaxX - _openSkyIntervals[i].MinX);
+            }
+            return total;
+        }
+
+        private SnowFlake RespawnFlake(double remainingDist)
+        {
+            var nf = NewFlake(false);
+            if (nf.Y > -9000)
+            {
+                double extraDelay = Math.Clamp(remainingDist, 0.0, Height);
+                nf.Y = -nf.Size * 3 - _rnd.NextDouble() * 50 - extraDelay;
+                nf.PrevY = nf.Y;
+            }
+            return nf;
+        }
+
         private void UpdateFlakes(double dt, CursorState cur)
         {
             double windDrift = _s.WindStrength * 60.0;
@@ -926,9 +949,35 @@ namespace WinterTray.Engine
             double radialAccel = 520.0 * _s.MouseWindPower;
             double dragAccel = 1.5 * _s.MouseSpeedSensitivity;
 
+            double totalW = GetTotalScreenWorkingWidth();
+            double openW = GetOpenSkyWidth();
+            double ratio = totalW > 0 ? (openW / totalW) : 1.0;
+            int targetActiveCount = (int)Math.Round(_s.FlakeCount * Math.Clamp(ratio, 0.0, 1.0));
+
             for (int i = 0; i < _flakes.Count; i++)
             {
                 var f = _flakes[i];
+
+                // Ha az ablakok kitakarása miatt arányosan kevesebb pehely kell a szabad égboltra,
+                // a felesleges pelyheket parkolópályára tesszük (-9999), így a szabad részen
+                // a hóesés sűrűsége hajszálpontosan azonos marad, nem alakul ki természetellenes torlódás!
+                if (i >= targetActiveCount)
+                {
+                    if (f.Y != -9999)
+                    {
+                        f.X = -9999;
+                        f.Y = -9999;
+                        f.PrevY = -9999;
+                    }
+                    continue;
+                }
+
+                // Ha korábban parkolópályán volt, de az égbolt megnyílt:
+                if (f.Y <= -9000)
+                {
+                    _flakes[i] = NewFlake(false);
+                    continue;
+                }
 
                 if (mouse)
                 {
@@ -959,21 +1008,21 @@ namespace WinterTray.Engine
 
                 if (_s.AccumulateOnWindows && _bankList.Count > 0 && TryLand(f, cur))
                 {
-                    _flakes[i] = NewFlake(false);
+                    _flakes[i] = RespawnFlake(Height - f.Y);
                     continue;
                 }
 
                 // Ha a hópehely egy ablak vagy kitakart terület felé ért,
-                // ne essen az alkalmazások mögött, hanem szűnjön meg / szülessen újjá a szabad égbolton!
+                // ne essen az alkalmazások mögött, hanem szűnjön meg és arányos késleltetéssel szülessen újjá!
                 if (IsOccluded(f.X, f.Y, f.Size * 1.1))
                 {
-                    _flakes[i] = NewFlake(false);
+                    _flakes[i] = RespawnFlake(Height - f.Y);
                     continue;
                 }
 
                 if (f.Y > Height + 30 || f.X < -90 || f.X > Width + 90)
                 {
-                    _flakes[i] = NewFlake(false);
+                    _flakes[i] = RespawnFlake(0);
                 }
             }
         }
@@ -1437,7 +1486,7 @@ namespace WinterTray.Engine
             for (int i = 0; i < _particleCount; i++)
             {
                 ref readonly var p = ref _particles[i];
-                if (p.Y >= Height - 44 || IsOccluded(p.X, p.Y, p.Size * 1.1)) continue;
+                if (p.Y < -20 || p.Y >= Height - 44 || IsOccluded(p.X, p.Y, p.Size * 1.1)) continue;
 
                 double t = p.Age / p.Life;
                 switch (p.Kind)
@@ -1474,7 +1523,7 @@ namespace WinterTray.Engine
             for (int i = 0; i < _flakes.Count; i++)
             {
                 var f = _flakes[i];
-                if (f.Y >= Height - 44 || IsOccluded(f.X, f.Y, f.Size * 1.3)) continue;
+                if (f.Y < -20 || f.Y >= Height - 44 || IsOccluded(f.X, f.Y, f.Size * 1.3)) continue;
 
                 switch (f.Kind)
                 {
@@ -1508,7 +1557,7 @@ namespace WinterTray.Engine
                 var f = _flakes[i];
                 if (f.Kind == FlakeKind.Bokeh)
                 {
-                    if (f.Y >= Height - 44 || IsOccluded(f.X, f.Y, f.Size * 2.3)) continue;
+                    if (f.Y < -20 || f.Y >= Height - 44 || IsOccluded(f.X, f.Y, f.Size * 2.3)) continue;
 
                     double dia = f.Size * 4.6;
                     var img = SnowSprites.GetBokeh(f.Opacity * 0.6);

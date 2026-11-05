@@ -143,6 +143,27 @@ namespace WinterTray
                 }
             }
 
+            // Test 5: Uniform snowflake density proportional to open sky width
+            world.SetScreensAndWindows(new List<ScreenInfo> { screen1 }, new List<TrackedWindow>());
+            int fullSkyCount = world.GetActiveFlakeCountForTesting();
+            if (fullSkyCount != 250) throw new Exception($"Expected 250 active flakes for full sky, got {fullSkyCount}");
+
+            world.SetScreensAndWindows(new List<ScreenInfo> { screen1 }, new List<TrackedWindow> { winLeft });
+            int halfSkyCount = world.GetActiveFlakeCountForTesting();
+            if (halfSkyCount < 120 || halfSkyCount > 130) throw new Exception($"Expected ~125 active flakes for half sky, got {halfSkyCount}");
+
+            world.SetScreensAndWindows(new List<ScreenInfo> { screen1 }, new List<TrackedWindow> { winLeft, winRight });
+            int zeroSkyCount = world.GetActiveFlakeCountForTesting();
+            if (zeroSkyCount != 0) throw new Exception($"Expected 0 active flakes for fully covered sky, got {zeroSkyCount}");
+
+            // Test 6: Pausing hides overlay so no frozen flakes appear on newly opened windows
+            var testOverlay = new SnowOverlayWindow(def);
+            testOverlay.SetPaused(true);
+            if (testOverlay.Visibility != Visibility.Hidden) throw new Exception("Paused overlay must be Hidden!");
+            testOverlay.SetPaused(false);
+            if (testOverlay.Visibility != Visibility.Visible) throw new Exception("Resumed overlay must be Visible!");
+            testOverlay.Close();
+
             Console.WriteLine("ALL UNIT TESTS PASSED!");
             File.WriteAllText("wintertray_test.txt", "PASSED");
         }

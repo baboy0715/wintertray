@@ -113,7 +113,20 @@ namespace WinterTray.UI
             CompositionTarget.Rendering -= OnRendering;
         }
 
-        public void SetPaused(bool paused) => _isPaused = paused;
+        public void SetPaused(bool paused)
+        {
+            _isPaused = paused;
+            if (paused)
+            {
+                Visibility = Visibility.Hidden;
+            }
+            else
+            {
+                _lastTime = _clock.Elapsed.TotalSeconds;
+                Visibility = Visibility.Visible;
+                _canvas.InvalidateVisual();
+            }
+        }
 
         public void ClearSnow()
         {
@@ -140,7 +153,11 @@ namespace WinterTray.UI
             }
             _lastTime = now;
 
-            if (_isPaused || _tracker == null) return;
+            if (_isPaused || _tracker == null)
+            {
+                if (Visibility != Visibility.Hidden) Visibility = Visibility.Hidden;
+                return;
+            }
 
             _pollAccumulator += dt;
             _zOrderAccumulator += dt;
