@@ -113,7 +113,7 @@ namespace WinterTray.Services
         }
 
         /// <summary>
-        /// Verziószám biztonságos parszolása (pl. "v2.2.0", "v2.3", "2.3.0", "v1.1-beta")
+        /// Verziószám biztonságos parszolása (pl. "v2.2.0", "v2.3", "2.3.0", "v1.1-beta", vagy fájlnévből: "WinterTray-Setup-v2.3.1.exe")
         /// </summary>
         public static bool TryParseVersion(string? raw, out Version version)
         {
@@ -136,7 +136,19 @@ namespace WinterTray.Services
                 return true;
             }
 
-            return Version.TryParse(clean, out version!);
+            if (Version.TryParse(clean, out version!))
+            {
+                return true;
+            }
+
+            // Ha szövegbe / fájlnévbe van ágyazva a verzió (pl. "WinterTray-Setup-v2.3.1.exe" vagy "Release v2.3.1")
+            var match = System.Text.RegularExpressions.Regex.Match(raw, @"[vV]?(\d+\.\d+(?:\.\d+)?(?:\.\d+)?)");
+            if (match.Success && match.Groups[1].Value != raw)
+            {
+                return TryParseVersion(match.Groups[1].Value, out version);
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -202,16 +214,6 @@ namespace WinterTray.Services
             var root = doc.RootElement;
 
             string tagName = root.TryGetProperty("tag_name", out var tagElem) ? tagElem.GetString() ?? "" : "";
-            if (string.IsNullOrWhiteSpace(tagName)) return null;
-
-            if (!TryParseVersion(tagName, out var remoteVersion))
-            {
-                return null;
-            }
-
-            var current = CurrentAppVersion;
-            bool isNewer = IsVersionNewer(current, remoteVersion);
-
             string releaseTitle = root.TryGetProperty("name", out var nameElem) ? nameElem.GetString() ?? tagName : tagName;
             string changelog = root.TryGetProperty("body", out var bodyElem) ? bodyElem.GetString() ?? "" : "";
             string htmlUrl = root.TryGetProperty("html_url", out var htmlElem) ? htmlElem.GetString() ?? GitHubReleasesPageUrl : GitHubReleasesPageUrl;
@@ -235,6 +237,30 @@ namespace WinterTray.Services
                     }
                 }
             }
+
+            // Verzió kinyerése és összehasonlítása:
+            // 1. tag_name (pl. "v2.3.1")
+            // 2. feltöltött telepítő fájlnév (pl. "WinterTray-Setup-v2.3.1.exe")
+            // 3. release címe (pl. "WinterTray v2.3.1")
+            if (!TryParseVersion(tagName, out var remoteVersion))
+            {
+                if (!TryParseVersion(fileName, out remoteVersion))
+                {
+                    if (!TryParseVersion(releaseTitle, out remoteVersion))
+                    {
+                        return null;
+                    }
+                }
+            }
+
+            // Ha a fájlnévben specifikusabb verziószám van (pl. tag: v2.3, de a fájl v2.3.1)
+            if (TryParseVersion(fileName, out var fileVersion) && IsVersionNewer(remoteVersion, fileVersion))
+            {
+                remoteVersion = fileVersion;
+            }
+
+            var current = CurrentAppVersion;
+            bool isNewer = IsVersionNewer(current, remoteVersion);
 
             // Ha nincs külön .exe asset csatolva a release-hez, a fallback link a release weboldala
             downloadUrl ??= htmlUrl;

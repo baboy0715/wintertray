@@ -35,8 +35,12 @@ namespace WinterTray
                 throw new Exception($"Failed to parse 1.0: got {v3}");
             if (!UpdateManager.TryParseVersion("v3.0.0-rc1", out var v4) || v4 != new Version(3, 0, 0))
                 throw new Exception($"Failed to parse v3.0.0-rc1: got {v4}");
+            if (!UpdateManager.TryParseVersion("WinterTray-Setup-v2.3.1.exe", out var v5) || v5 != new Version(2, 3, 1))
+                throw new Exception($"Failed to parse WinterTray-Setup-v2.3.1.exe: got {v5}");
 
-            // Verzió összehasonlítás tesztek
+            // Verzió összehasonlítás tesztek (pl. 2.3 vs 2.3.1)
+            if (!UpdateManager.IsVersionNewer(new Version(2, 3, 0), new Version(2, 3, 1)))
+                throw new Exception("2.3.1 should be newer than 2.3.0");
             if (!UpdateManager.IsVersionNewer(new Version(2, 2, 0), new Version(2, 3, 0)))
                 throw new Exception("2.3.0 should be newer than 2.2.0");
             if (!UpdateManager.IsVersionNewer(new Version(2, 2, 0), new Version(2, 2, 1)))
