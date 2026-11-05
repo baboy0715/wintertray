@@ -181,6 +181,27 @@ namespace WinterTray
                 if (testBank.Icicles[0].BaseY != 600) throw new Exception($"Expected icicle baseY 600 after resize, got {testBank.Icicles[0].BaseY}");
             }
 
+            // Test 9: IsCoveredByTaskbar correctly detects taskbar (bottom, side, etc.)
+            var tbBottom = new TrackedWindow { HWnd = new IntPtr(888), IsTaskbar = true, Rect = new Rect(0, 1040, 1920, 40) };
+            var tbSide = new TrackedWindow { HWnd = new IntPtr(889), IsTaskbar = true, Rect = new Rect(0, 0, 60, 1080) };
+            world.SetScreensAndWindows(new List<ScreenInfo> { screen1 }, new List<TrackedWindow> { tbBottom });
+            if (!world.IsCoveredByTaskbar(500, 1050)) throw new Exception("Expected bottom taskbar to cover (500, 1050)!");
+            if (world.IsCoveredByTaskbar(500, 500)) throw new Exception("Desktop area should not be covered by taskbar!");
+
+            world.SetScreensAndWindows(new List<ScreenInfo> { screen1 }, new List<TrackedWindow> { tbSide });
+            if (!world.IsCoveredByTaskbar(30, 500)) throw new Exception("Expected side taskbar to cover (30, 500)!");
+            if (world.IsCoveredByTaskbar(200, 500)) throw new Exception("Middle area should not be covered by side taskbar!");
+
+            // Test 10: Z-order occlusion for dust/particles and droplets
+            var frontWin = new TrackedWindow { HWnd = new IntPtr(1001), Rect = new Rect(100, 100, 400, 300) };
+            var backWin = new TrackedWindow { HWnd = new IntPtr(1002), Rect = new Rect(50, 50, 600, 500) };
+            world.SetScreensAndWindows(new List<ScreenInfo> { screen1 }, new List<TrackedWindow> { frontWin, backWin });
+
+            // Sweep dust on front window at (200, 150) should NOT be occluded by back window
+            if (world.IsCoveredByHigher(200, 150, frontWin.HWnd)) throw new Exception("Dust on front window must not be occluded by back window!");
+            // Droplet from back window at (200, 150) MUST be occluded by front window
+            if (!world.IsCoveredByHigher(200, 150, backWin.HWnd)) throw new Exception("Droplet behind front window must be occluded by front window!");
+
             Console.WriteLine("ALL UNIT TESTS PASSED!");
             File.WriteAllText("wintertray_test.txt", "PASSED");
         }

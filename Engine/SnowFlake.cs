@@ -34,6 +34,7 @@ namespace WinterTray.Engine
 
     public struct Particle
     {
+        public IntPtr SourceHwnd;
         public double X, Y, Vx, Vy;
         public double Size;
         public double Rot, RotSpeed;

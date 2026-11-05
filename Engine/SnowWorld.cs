@@ -8,6 +8,7 @@ namespace WinterTray.Engine
 {
     public sealed class WaterDroplet
     {
+        public IntPtr SourceHwnd;
         public double X;
         public double Y;
         public double Vy;
@@ -231,7 +232,7 @@ namespace WinterTray.Engine
                         _banks[w.HWnd] = bank;
                         _bankList.Add(bank);
                     }
-                    bank.UpdateBounds(w.Rect.Left, w.Rect.Top, w.Rect.Width, w.Rect.Height, HandleResizeShed);
+                    bank.UpdateBounds(w.Rect.Left, w.Rect.Top, w.Rect.Width, w.Rect.Height, (x, y, amt, dir) => HandleResizeShed(x, y, amt, dir, bank.HWnd));
                 }
             }
 
@@ -394,24 +395,17 @@ namespace WinterTray.Engine
 
         /// <summary>
         /// Ablak bezárásakor / letálcázásakor azonnal feltöltjük a frissen felfedett asztalterületet
-        /// eső hópelyhekkel, mintha mindvégig esett volna a háttérben (nulla felesleges korábbi számítási igénnyel).
+        /// eső hópelyhekkel, mintha mindvégig esett volna a háttérben.
         /// </summary>
         public void PopulateExposedArea(Rect area)
         {
             if (area.Width < 50 || area.Height < 50) return;
 
-            double screenArea = Math.Max(1.0, Width * Height);
-            double exposedArea = area.Width * area.Height;
-            int targetCount = (int)Math.Clamp(
-                _s.FlakeCount * (exposedArea / screenArea),
-                10, Math.Min(_flakes.Count, 90));
-
-            int reseeded = 0;
-            // A képernyőn kívül (pl. várakozó sorban vagy parkolópályán) lévő vagy alsó szélhez ért pelyheket helyezzük át az új területre
-            for (int i = 0; i < _flakes.Count && reseeded < targetCount; i++)
+            // Csak a parkolópályán lévő (-9999) pelyheket helyezzük át az újonnan megnyílt területre egyenletesen
+            for (int i = 0; i < _flakes.Count; i++)
             {
                 var f = _flakes[i];
-                if (f.Y > Height - 40 || f.Y < -5 || f.X < -10 || f.X > Width + 10)
+                if (f.Y <= -9000)
                 {
                     double candX = area.Left + _rnd.NextDouble() * area.Width;
                     double candY = area.Top + _rnd.NextDouble() * area.Height;
@@ -421,7 +415,6 @@ namespace WinterTray.Engine
                     f.PrevY = f.Y;
                     f.Dvx = 0;
                     f.Dvy = 0;
-                    reseeded++;
                 }
             }
         }
@@ -477,7 +470,7 @@ namespace WinterTray.Engine
             // A pozíció és méret azonnal frissül:
             // Ha az ablakot kicsinyítik (szélét behúzzák), a levágott peremről a hó szépen leomlik,
             // a megmaradt felületen lévő hó pedig képernyő-helyén marad, nem torzul.
-            bank.UpdateBounds(r.Left, r.Top, r.Width, r.Height, HandleResizeShed);
+            bank.UpdateBounds(r.Left, r.Top, r.Width, r.Height, (x, y, amt, dir) => HandleResizeShed(x, y, amt, dir, bank.HWnd));
 
             double safeDt = Math.Clamp(dt, 0.005, 0.1);
             double vx = (r.X - oldRect.X) / safeDt;
@@ -522,14 +515,14 @@ namespace WinterTray.Engine
                         if (_particleCount < budget)
                         {
                             // A lehulló hódarabok megőrzik az ablak lendületét és hókupacokként hullanak le
-                            SpawnInertialClump(px, py, vx * 0.40 + Gauss() * 25, vy * 0.30 + 20 + _rnd.NextDouble() * 30, amount);
+                            SpawnInertialClump(px, py, vx * 0.40 + Gauss() * 25, vy * 0.30 + 20 + _rnd.NextDouble() * 30, amount, bank.HWnd);
                         }
                     });
                 }
             }
         }
 
-        private void HandleResizeShed(double x, double y, float amount, double edgeDir)
+        private void HandleResizeShed(double x, double y, float amount, double edgeDir, IntPtr hwnd)
         {
             int budget = MaxBudget();
             if (budget <= 0 || _particleCount >= budget) return;
@@ -545,6 +538,7 @@ namespace WinterTray.Engine
 
                 SpawnParticle(new Particle
                 {
+                    SourceHwnd = hwnd,
                     Kind = ParticleKind.Clump,
                     X = x + (_rnd.NextDouble() - 0.5) * 6,
                     Y = y + (_rnd.NextDouble() - 0.5) * 4,
@@ -564,6 +558,7 @@ namespace WinterTray.Engine
                 double dir = edgeDir != 0.0 ? edgeDir : 0.0;
                 SpawnParticle(new Particle
                 {
+                    SourceHwnd = hwnd,
                     Kind = ParticleKind.Dust,
                     X = x + (_rnd.NextDouble() - 0.5) * 4,
                     Y = y - 1 - _rnd.NextDouble() * 3,
@@ -575,12 +570,13 @@ namespace WinterTray.Engine
             }
         }
 
-        private void SpawnInertialClump(double x, double y, double vx, double vy, float amount)
+        private void SpawnInertialClump(double x, double y, double vx, double vy, float amount, IntPtr hwnd)
         {
             if (_particleCount >= MaxBudget()) return;
             double size = 2.4 + Math.Min(amount, 5.0) * 0.6 + _rnd.NextDouble() * 1.6;
             SpawnParticle(new Particle
             {
+                SourceHwnd = hwnd,
                 Kind = ParticleKind.Clump,
                 X = x + (_rnd.NextDouble() - 0.5) * 6,
                 Y = y + (_rnd.NextDouble() - 0.5) * 4,
@@ -592,6 +588,23 @@ namespace WinterTray.Engine
                 Life = 0.65 + _rnd.NextDouble() * 0.65,
                 Variant = _rnd.Next(SnowSprites.ClumpVariants)
             });
+        }
+
+        public bool IsCoveredByTaskbar(double x, double y, double margin = 0.0)
+        {
+            for (int i = 0; i < _windows.Count; i++)
+            {
+                var w = _windows[i];
+                if (w.IsTaskbar)
+                {
+                    if (x >= w.Rect.Left - margin && x <= w.Rect.Right + margin &&
+                        y >= w.Rect.Top - margin && y <= w.Rect.Bottom + margin)
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
 
         public bool IsOccluded(double x, double y, double radius)
@@ -608,7 +621,23 @@ namespace WinterTray.Engine
                 }
             }
 
-            // 2. Ablakok általi kitakarás vizsgálata
+            // 2. Tálca általi közvetlen kitakarás:
+            // A hó nem egy virtuális vonalnál tűnik el a levegőben, hanem KONKRÉTAN maga a tálca takarja el!
+            // Így oldalra helyezett tálcánál (balra vagy jobbra) és többképernyős rendszereknél is tökéletes.
+            for (int i = 0; i < _windows.Count; i++)
+            {
+                var w = _windows[i];
+                if (w.IsTaskbar)
+                {
+                    if (x + radius >= w.Rect.Left && x - radius <= w.Rect.Right &&
+                        y + radius >= w.Rect.Top && y - radius <= w.Rect.Bottom)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            // 3. Ablakok általi kitakarás vizsgálata
             for (int i = 0; i < _windows.Count; i++)
             {
                 var w = _windows[i];
@@ -768,15 +797,20 @@ namespace WinterTray.Engine
                 var bank = _bankList[bIdx];
                 if (bank.TryGetDropletSource(_rnd, out double dx, out double dy, out bool fromTop, out double ty))
                 {
-                    _droplets.Add(new WaterDroplet
+                    // Ha a jégcsap-forrás el van takarva egy előtéri ablak vagy tálca által, nem indítunk cseppet!
+                    if (!IsCoveredByHigher(dx, dy, bank.HWnd) && !IsCoveredByTaskbar(dx, dy))
                     {
-                        X = dx,
-                        Y = dy,
-                        Vy = 35.0 + _rnd.NextDouble() * 30.0,
-                        FromTop = fromTop,
-                        TargetY = ty,
-                        Life = 4.0
-                    });
+                        _droplets.Add(new WaterDroplet
+                        {
+                            SourceHwnd = bank.HWnd,
+                            X = dx,
+                            Y = dy,
+                            Vy = 35.0 + _rnd.NextDouble() * 30.0,
+                            FromTop = fromTop,
+                            TargetY = ty,
+                            Life = 4.0
+                        });
+                    }
                 }
             }
 
@@ -804,6 +838,13 @@ namespace WinterTray.Engine
                     d.Vy += 620.0 * dt;
                     d.Y += d.Vy * dt;
 
+                    // Ha a vízcsepp menet közben egy másik (előtéri) ablak mögé vagy a tálca mögé esik:
+                    if (IsCoveredByHigher(d.X, d.Y, d.SourceHwnd) || IsCoveredByTaskbar(d.X, d.Y))
+                    {
+                        _droplets.RemoveAt(i--);
+                        continue;
+                    }
+
                     // Felső jégcsapról eső csepp: az ablak aljára érve szétfröccsen / lecseppen
                     if (d.FromTop && d.Y >= d.TargetY)
                     {
@@ -818,6 +859,7 @@ namespace WinterTray.Engine
                             {
                                 SpawnParticle(new Particle
                                 {
+                                    SourceHwnd = d.SourceHwnd,
                                     Kind = ParticleKind.Dust,
                                     X = d.X + (_rnd.NextDouble() - 0.5) * 6,
                                     Y = d.TargetY - 1 - _rnd.NextDouble() * 3,
@@ -829,8 +871,8 @@ namespace WinterTray.Engine
                             }
                         }
                     }
-                    // Alsó jégcsapról eső csepp: a tálca tetején / képernyő alján eltűnik
-                    else if (!d.FromTop && d.Y >= GetGroundY(d.X))
+                    // Alsó jégcsapról eső csepp: a képernyő alján vagy a tálcán eltűnik
+                    else if (!d.FromTop && (d.Y >= Height + 20 || IsCoveredByTaskbar(d.X, d.Y)))
                     {
                         _droplets.RemoveAt(i--);
                         continue;
@@ -865,6 +907,7 @@ namespace WinterTray.Engine
                                 bool isDust = _rnd.NextDouble() < 0.45;
                                 SpawnParticle(new Particle
                                 {
+                                    SourceHwnd = bank.HWnd,
                                     Kind = isDust ? ParticleKind.Dust : ParticleKind.Clump,
                                     X = hx + (_rnd.NextDouble() - 0.5) * 8,
                                     Y = hy + (_rnd.NextDouble() - 0.5) * (icLen * 0.6),
@@ -885,6 +928,7 @@ namespace WinterTray.Engine
                             {
                                 SpawnParticle(new Particle
                                 {
+                                    SourceHwnd = bank.HWnd,
                                     Kind = ParticleKind.Dust,
                                     X = hx + (_rnd.NextDouble() - 0.5) * 4,
                                     Y = hy + (_rnd.NextDouble() - 0.5) * 6,
@@ -1038,16 +1082,8 @@ namespace WinterTray.Engine
                     continue;
                 }
 
-                // Ha a hópehely egy ablak vagy kitakart terület felé ért,
-                // ne essen az alkalmazások mögött, hanem szűnjön meg és arányos késleltetéssel szülessen újjá!
-                if (IsOccluded(f.X, f.Y, f.Size * 1.1))
-                {
-                    _flakes[i] = RespawnFlake(Height - f.Y);
-                    continue;
-                }
-
-                double groundY = GetGroundY(f.X);
-                if (f.Y >= groundY || f.X < -90 || f.X > Width + 90)
+                // Ha a hópehely elérte a képernyő alját vagy elhagyta a képernyőt
+                if (f.Y >= Height + 25 || f.X < -90 || f.X > Width + 90)
                 {
                     _flakes[i] = RespawnFlake(0);
                 }
@@ -1100,6 +1136,7 @@ namespace WinterTray.Engine
                 {
                     SpawnParticle(new Particle
                     {
+                        SourceHwnd = bank.HWnd,
                         Kind = ParticleKind.Settle,
                         X = f.X,
                         Y = surface,
@@ -1170,6 +1207,9 @@ namespace WinterTray.Engine
                     double px = activeLeft + i * SnowBank.Step;
                     double py = bank.Top - bank.H[i] * 0.5;
 
+                    // Ha a hóréteg ezen pontja egy feljebb lévő (előtéri) ablak alatt van, ne söpörhessük le a takart havat
+                    if (IsCoveredByHigher(px, py, bank.HWnd)) continue;
+
                     DistToSegment(px, py, cur.PrevX, cur.PrevY, cur.X, cur.Y, out double cx, out double cy);
                     double dx = Math.Abs(px - cx);
                     if (dx > R) continue;
@@ -1209,6 +1249,7 @@ namespace WinterTray.Engine
                             bool isClump = _rnd.NextDouble() < 0.28; // 72% finom porhó a valósághű porzó hatáshoz
                             SpawnParticle(new Particle
                             {
+                                SourceHwnd = bank.HWnd,
                                 Kind = isClump ? ParticleKind.Clump : ParticleKind.Dust,
                                 X = px + (_rnd.NextDouble() - 0.5) * 5,
                                 Y = bank.Top - prevH * _rnd.NextDouble(),
@@ -1259,6 +1300,7 @@ namespace WinterTray.Engine
                     {
                         SpawnParticle(new Particle
                         {
+                            SourceHwnd = bank.HWnd,
                             Kind = ParticleKind.Clump,
                             X = x0 + _rnd.NextDouble() * 8,
                             Y = bank.Top - _rnd.NextDouble() * h,
@@ -1316,6 +1358,7 @@ namespace WinterTray.Engine
                         {
                             SpawnParticle(new Particle
                             {
+                                SourceHwnd = p.SourceHwnd,
                                 Kind = ParticleKind.Dust,
                                 X = p.X + (_rnd.NextDouble() - 0.5) * p.Size,
                                 Y = p.Y + (_rnd.NextDouble() - 0.3) * p.Size,
@@ -1391,12 +1434,6 @@ namespace WinterTray.Engine
                 f.X = chosenX;
                 f.Y = initial ? _rnd.NextDouble() * Height : -f.Size * 3 - _rnd.NextDouble() * 60;
                 f.PrevY = f.Y;
-
-                if (initial && IsOccluded(f.X, f.Y, f.Size * 1.3))
-                {
-                    f.Y = -f.Size * 3 - _rnd.NextDouble() * 60;
-                    f.PrevY = f.Y;
-                }
             }
 
             switch (_s.FlakeStyle)
@@ -1509,17 +1546,21 @@ namespace WinterTray.Engine
             }
 
             // 2. Részecskék (lavina és söprés) - közvetlen sprite kirajzolás, NULLA PushOpacity / PushTransform
-            // A tálca és talaj felett lágyan elolvadnak
             for (int i = 0; i < _particleCount; i++)
             {
                 ref readonly var p = ref _particles[i];
-                if (p.Y < -20) continue;
+                if (p.Y < -20 || p.Y > Height + 30) continue;
 
-                double groundY = GetGroundY(p.X);
-                double fade = Math.Clamp((groundY - p.Y) / 22.0, 0.0, 1.0);
-                if (fade <= 0.01) continue;
-
-                if (IsOccluded(p.X, p.Y, p.Size * 1.1)) continue;
+                if (p.SourceHwnd != IntPtr.Zero)
+                {
+                    // Csak a forrásablaknál feljebb (előtérben) lévő ablakok, vagy a tálca takarhatja el a lesöpört port
+                    if (IsCoveredByHigher(p.X, p.Y, p.SourceHwnd)) continue;
+                    if (IsCoveredByTaskbar(p.X, p.Y)) continue;
+                }
+                else
+                {
+                    if (IsOccluded(p.X, p.Y, p.Size * 1.1)) continue;
+                }
 
                 double t = p.Age / p.Life;
                 switch (p.Kind)
@@ -1527,7 +1568,7 @@ namespace WinterTray.Engine
                     case ParticleKind.Clump:
                     {
                         double scale = 1.0 - 0.35 * t * t;
-                        double op = (t < 0.65 ? 1.0 : 1.0 - (t - 0.65) / 0.35) * fade;
+                        double op = t < 0.65 ? 1.0 : 1.0 - (t - 0.65) / 0.35;
                         double dia = p.Size * 2.2 * scale;
                         var img = SnowSprites.GetClump(p.Variant, p.Rot, op);
                         dc.DrawImage(img, new Rect(p.X - dia * 0.5, p.Y - dia * 0.5, dia, dia));
@@ -1535,7 +1576,7 @@ namespace WinterTray.Engine
                     }
                     case ParticleKind.Dust:
                     {
-                        double op = (1.0 - t) * 0.8 * fade;
+                        double op = (1.0 - t) * 0.8;
                         double dia = p.Size * 2.0;
                         var img = SnowSprites.GetDust(op);
                         dc.DrawImage(img, new Rect(p.X - dia * 0.5, p.Y - dia * 0.5, dia, dia));
@@ -1543,7 +1584,7 @@ namespace WinterTray.Engine
                     }
                     case ParticleKind.Settle:
                     {
-                        double op = (1.0 - t) * 0.9 * fade;
+                        double op = (1.0 - t) * 0.9;
                         double dia = p.Size * 2.2 * (1.0 - 0.4 * t);
                         var img = SnowSprites.GetPuff(op);
                         dc.DrawImage(img, new Rect(p.X - dia * 0.5, p.Y - dia * 0.5, dia, dia));
@@ -1552,15 +1593,11 @@ namespace WinterTray.Engine
                 }
             }
 
-            // 3. Hulló hópelyhek - a nyitott ablakokra vagy a tálcára nem esik hó (a talaj/tálca felett lágyan elolvadnak)
+            // 3. Hulló hópelyhek - nyitott ablakokra vagy a tálcára nem esik hó (maga a tálca vagy ablak fedi el)
             for (int i = 0; i < _flakes.Count; i++)
             {
                 var f = _flakes[i];
-                if (f.Y < -20) continue;
-
-                double groundY = GetGroundY(f.X);
-                double fade = Math.Clamp((groundY - f.Y) / 28.0, 0.0, 1.0);
-                if (fade <= 0.01) continue;
+                if (f.Y < -20 || f.Y > Height + 30) continue;
 
                 if (IsOccluded(f.X, f.Y, f.Size * 1.3)) continue;
 
@@ -1569,21 +1606,21 @@ namespace WinterTray.Engine
                     case FlakeKind.Dust:
                     {
                         double dia = f.Size * 1.6;
-                        var img = SnowSprites.GetDust(f.Opacity * 0.8 * fade);
+                        var img = SnowSprites.GetDust(f.Opacity * 0.8);
                         dc.DrawImage(img, new Rect(f.X - dia * 0.5, f.Y - dia * 0.5, dia, dia));
                         break;
                     }
                     case FlakeKind.Puff:
                     {
                         double dia = f.Size * 2.6;
-                        var img = SnowSprites.GetPuff(f.Opacity * fade);
+                        var img = SnowSprites.GetPuff(f.Opacity);
                         dc.DrawImage(img, new Rect(f.X - dia * 0.5, f.Y - dia * 0.5, dia, dia));
                         break;
                     }
                     case FlakeKind.Crystal:
                     {
                         double dia = f.Size * 2.6;
-                        var img = SnowSprites.GetCrystal(f.Variant, f.Rot, f.Opacity * fade);
+                        var img = SnowSprites.GetCrystal(f.Variant, f.Rot, f.Opacity);
                         dc.DrawImage(img, new Rect(f.X - dia * 0.5, f.Y - dia * 0.5, dia, dia));
                         break;
                     }
@@ -1596,26 +1633,24 @@ namespace WinterTray.Engine
                 var f = _flakes[i];
                 if (f.Kind == FlakeKind.Bokeh)
                 {
-                    if (f.Y < -20) continue;
-
-                    double groundY = GetGroundY(f.X);
-                    double fade = Math.Clamp((groundY - f.Y) / 36.0, 0.0, 1.0);
-                    if (fade <= 0.01) continue;
+                    if (f.Y < -20 || f.Y > Height + 30) continue;
 
                     if (IsOccluded(f.X, f.Y, f.Size * 2.3)) continue;
 
                     double dia = f.Size * 4.6;
-                    var img = SnowSprites.GetBokeh(f.Opacity * 0.6 * fade);
+                    var img = SnowSprites.GetBokeh(f.Opacity * 0.6);
                     dc.DrawImage(img, new Rect(f.X - dia * 0.5, f.Y - dia * 0.5, dia, dia));
                 }
             }
 
-            // 5. Vízcseppek a jégcsapokról (lecseppenés az ablak aljára / eltűnés a tálca alatt)
+            // 5. Vízcseppek a jégcsapokról (előtéri ablakok és tálca általi kitakarással)
             if (_droplets.Count > 0)
             {
                 for (int i = 0; i < _droplets.Count; i++)
                 {
                     var d = _droplets[i];
+                    if (IsCoveredByHigher(d.X, d.Y, d.SourceHwnd) || IsCoveredByTaskbar(d.X, d.Y)) continue;
+
                     if (d.Splashed)
                     {
                         double scale = d.SplashAge / 0.15;
