@@ -199,7 +199,21 @@ namespace WinterTray.Engine
                 foreach (var w in windows)
                 {
                     if (w.IsTaskbar && !_s.AccumulateOnTaskbar) continue;
-                    if (w.Rect.Top < LedgeMinTop || w.Rect.Top > Height - 40) continue;
+
+                    double sTop = 0;
+                    double sBottom = Height;
+                    for (int s = 0; s < _screens.Count; s++)
+                    {
+                        var sc = _screens[s];
+                        if (sc.Bounds.IntersectsWith(w.Rect))
+                        {
+                            sTop = sc.WorkingArea.Top;
+                            sBottom = sc.WorkingArea.Bottom;
+                            break;
+                        }
+                    }
+
+                    if (w.Rect.Top < sTop + LedgeMinTop || w.Rect.Top > sBottom - 40) continue;
                     if (w.Rect.Width < 120) continue;
 
                     keep.Add(w.HWnd);
@@ -281,7 +295,7 @@ namespace WinterTray.Engine
                     if (win.IsTaskbar) continue;
                     // Ha az ablak eléri a monitor felső peremét (pl. Win+Balra/Jobbra vagy maximalizált),
                     // akkor a fölötte lévő oszlopból nem indulhat hóesés!
-                    if (win.Rect.Top <= sTop + 35 && win.Rect.Right > sLeft && win.Rect.Left < sRight)
+                    if (win.Rect.Top < sTop + LedgeMinTop && win.Rect.Right > sLeft && win.Rect.Left < sRight)
                     {
                         double bMin = win.Rect.Left - 4;
                         double bMax = win.Rect.Right + 4;
@@ -457,7 +471,20 @@ namespace WinterTray.Engine
 
             // 2. ESET: Az ablak még nyitva van és mozog a képernyőn
             var r = newRect.Value;
-            if (r.Top < LedgeMinTop || r.Top > Height - 40 || r.Width < 120)
+            double sTop = 0;
+            double sBottom = Height;
+            for (int s = 0; s < _screens.Count; s++)
+            {
+                var sc = _screens[s];
+                if (sc.Bounds.IntersectsWith(r))
+                {
+                    sTop = sc.WorkingArea.Top;
+                    sBottom = sc.WorkingArea.Bottom;
+                    break;
+                }
+            }
+
+            if (r.Top < sTop + LedgeMinTop || r.Top > sBottom - 40 || r.Width < 120)
             {
                 Avalanche(bank, bank.Vx, bank.Vy);
                 _banks.Remove(hwnd);
@@ -607,7 +634,7 @@ namespace WinterTray.Engine
 
                 double wLeft = w.Rect.Left - 2.0;
                 double wRight = w.Rect.Right + 2.0;
-                double wTop = w.Rect.Top - 2.0;
+                double wTop = w.Rect.Top + 6.0;
                 double wBottom = w.Rect.Bottom + 2.0;
 
                 // Monitor munkaterület felső és alsó határa az ablak környezetében
@@ -626,7 +653,7 @@ namespace WinterTray.Engine
 
                 // Ha az ablak eléri a képernyő tetejét (pl. 2 ablak egymás mellett, maximalizált ablak, stb.)
                 // akkor fölötte / a fejlécénél NEM eshet hó!
-                if (w.Rect.Top <= sTop + 35)
+                if (w.Rect.Top < sTop + LedgeMinTop)
                 {
                     wTop = -9999.0;
                 }
@@ -666,13 +693,13 @@ namespace WinterTray.Engine
 
         private bool IsCoveredByOther(double x, double y, IntPtr except)
         {
-            for (int i = 0; i < _windows.Count; i++)
-            {
-                var w = _windows[i];
-                if (w.HWnd == except) continue;
-                if (w.Rect.Contains(x, y)) return true;
-            }
-            return false;
+            return IsCoveredByHigher(x, y, except);
+        }
+
+        internal SnowBank? GetBankForTesting(IntPtr hwnd)
+        {
+            _banks.TryGetValue(hwnd, out var b);
+            return b;
         }
 
         public void UpdateWindowsClearance()
@@ -980,9 +1007,9 @@ namespace WinterTray.Engine
                 if (foot < surface || prevFoot > surface + 3 || foot > bank.Top + 16) continue;
 
                 // Csak akkor rakódhat le a hó az ablak tetejére, ha az ablak pereme feletti rész
-                // valóban szabad asztal-háttér (nincs felette/rajta semmilyen másik ablak, Z-sorrendtől függetlenül sem!)
-                if (IsCoveredByOther(f.X, bank.Top - 4, bank.HWnd) ||
-                    IsCoveredByOther(f.X, surface - 2, bank.HWnd) ||
+                // nem takart egy feljebb lévő (előtéri) ablak által!
+                if (IsCoveredByHigher(f.X, bank.Top - 4, bank.HWnd) ||
+                    IsCoveredByHigher(f.X, surface - 2, bank.HWnd) ||
                     IsCoveredByHigher(f.X, bank.Top + 2, bank.HWnd))
                 {
                     continue;

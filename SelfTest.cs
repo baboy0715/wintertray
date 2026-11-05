@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using WinterTray.Engine;
 using WinterTray.Native;
 using WinterTray.UI;
 
@@ -62,7 +63,45 @@ namespace WinterTray
             if (!world.IsOccluded(1400, 300, 5)) throw new Exception("Right half not occluded when both open");
             if (!world.IsOccluded(960, 300, 5)) throw new Exception("Seam not occluded");
 
-            // Test 3: IsScreenCovered with side-by-side windows
+            // Test 3: Floating window (e.g. File Explorer) with open desktop above it
+            var winExplorer = new TrackedWindow
+            {
+                HWnd = new IntPtr(12345),
+                Title = "File Explorer",
+                Rect = new Rect(200, 300, 800, 500),
+                PxRect = new Win32.RECT { Left = 200, Top = 300, Right = 1000, Bottom = 800 },
+                IsTaskbar = false
+            };
+            var winBackground = new TrackedWindow
+            {
+                HWnd = new IntPtr(67890),
+                Title = "Background App",
+                Rect = new Rect(100, 350, 1200, 550),
+                PxRect = new Win32.RECT { Left = 100, Top = 350, Right = 1300, Bottom = 900 },
+                IsTaskbar = false
+            };
+
+            // Explorer is in front of winBackground:
+            world.SetScreensAndWindows(new List<ScreenInfo> { screen1 }, new List<TrackedWindow> { winExplorer, winBackground });
+
+            // Flake approaching the ledge of Explorer (e.g. Y = 295, radius 4.4 -> Y + radius = 299.4) must NOT be occluded:
+            if (world.IsOccluded(500, 295, 4.4)) throw new Exception("Point just above floating window ledge must NOT be occluded!");
+            if (world.IsOccluded(500, 300, 4.4)) throw new Exception("Point at floating window ledge must NOT be occluded!");
+
+            // Inside Explorer (e.g. Y = 350) MUST be occluded:
+            if (!world.IsOccluded(500, 350, 4.4)) throw new Exception("Point inside floating window body MUST be occluded!");
+
+            // Test snow accumulation on Explorer ledge:
+            for (int tick = 0; tick < 300; tick++)
+            {
+                world.Update(0.016, new CursorState { Valid = false });
+            }
+
+            var explorerBank = world.GetBankForTesting(winExplorer.HWnd);
+            if (explorerBank == null) throw new Exception("Bank was not created for floating window!");
+            if (explorerBank.Peak <= 0.0) throw new Exception($"Snow did not accumulate on floating window! Peak = {explorerBank.Peak}");
+
+            // Test 4: IsScreenCovered with side-by-side windows
             var primaryScreen = System.Windows.Forms.Screen.PrimaryScreen;
             if (primaryScreen != null)
             {
@@ -105,6 +144,7 @@ namespace WinterTray
             }
 
             Console.WriteLine("ALL UNIT TESTS PASSED!");
+            File.WriteAllText("wintertray_test.txt", "PASSED");
         }
 
         public static async Task RunAsync(string dir, SnowOverlayWindow overlay)
