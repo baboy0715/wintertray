@@ -202,6 +202,10 @@ namespace WinterTray
             // Droplet from back window at (200, 150) MUST be occluded by front window
             if (!world.IsCoveredByHigher(200, 150, backWin.HWnd)) throw new Exception("Droplet behind front window must be occluded by front window!");
 
+            // Test 11: IsInsideOtherWindow prevents snow landing inside other applications
+            if (!world.IsInsideOtherWindow(200, 150, frontWin.HWnd)) throw new Exception("Front window inside back window must be recognized by IsInsideOtherWindow!");
+            if (world.IsInsideOtherWindow(200, 20, frontWin.HWnd)) throw new Exception("Open sky above window must not be marked as inside another window!");
+
             Console.WriteLine("ALL UNIT TESTS PASSED!");
             File.WriteAllText("wintertray_test.txt", "PASSED");
         }

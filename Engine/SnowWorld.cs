@@ -691,6 +691,17 @@ namespace WinterTray.Engine
             return IsOccluded(x, y, 0);
         }
 
+        public bool IsInsideOtherWindow(double x, double y, IntPtr exceptHwnd)
+        {
+            for (int i = 0; i < _windows.Count; i++)
+            {
+                var w = _windows[i];
+                if (w.HWnd == exceptHwnd || w.IsTaskbar) continue;
+                if (w.Rect.Contains(x, y)) return true;
+            }
+            return false;
+        }
+
         public bool IsCoveredByHigher(double x, double y, IntPtr hwnd)
         {
             for (int i = 0; i < _windows.Count; i++)
@@ -1027,26 +1038,25 @@ namespace WinterTray.Engine
             {
                 var f = _flakes[i];
 
-                // Ha az ablakok kitakarása miatt arányosan kevesebb pehely kell a szabad égboltra,
-                // a felesleges pelyheket parkolópályára tesszük (-9999), így a szabad részen
-                // a hóesés sűrűsége hajszálpontosan azonos marad, nem alakul ki természetellenes torlódás!
+                // Ha az ablakok kitakarása miatt arányosan kevesebb pehely kell a szabad égboltra:
+                // A felesleges pelyheket CSAK akkor parkoljuk le (-9999), ha már leértek a képernyő aljára!
+                // Soha nem töröljük őket hirtelen a levegőből az ablak megnyitásakor, így nem tűnnek el a hópelyhek!
                 if (i >= targetActiveCount)
                 {
-                    if (f.Y != -9999)
+                    if (f.Y <= -9000)
                     {
-                        f.X = -9999;
-                        f.Y = -9999;
-                        f.PrevY = -9999;
+                        continue;
                     }
-                    continue;
                 }
-
-                // Ha korábban parkolópályán volt, de az égbolt megnyílt (pl. minimalizálták/bezárták a maximalizált ablakot):
-                // A pelyheket elszórtan a teljes magasságban hozzuk létre (nem pedig egyszerre a felső szélről zuhannak le)
-                if (f.Y <= -9000)
+                else
                 {
-                    _flakes[i] = NewFlake(true);
-                    continue;
+                    // Ha korábban parkolópályán volt, de az égbolt megnyílt (pl. bezártak/letálcáztak egy ablakot):
+                    // A pelyheket elszórtan a teljes magasságban hozzuk létre (nem egyszerre a felső szélről zuhannak le)
+                    if (f.Y <= -9000)
+                    {
+                        _flakes[i] = NewFlake(true);
+                        continue;
+                    }
                 }
 
                 if (mouse)
@@ -1078,14 +1088,32 @@ namespace WinterTray.Engine
 
                 if (_s.AccumulateOnWindows && _bankList.Count > 0 && TryLand(f, cur))
                 {
-                    _flakes[i] = RespawnFlake(Height - f.Y);
+                    if (i >= targetActiveCount)
+                    {
+                        f.X = -9999;
+                        f.Y = -9999;
+                        f.PrevY = -9999;
+                    }
+                    else
+                    {
+                        _flakes[i] = RespawnFlake(Height - f.Y);
+                    }
                     continue;
                 }
 
                 // Ha a hópehely elérte a képernyő alját vagy elhagyta a képernyőt
                 if (f.Y >= Height + 25 || f.X < -90 || f.X > Width + 90)
                 {
-                    _flakes[i] = RespawnFlake(0);
+                    if (i >= targetActiveCount)
+                    {
+                        f.X = -9999;
+                        f.Y = -9999;
+                        f.PrevY = -9999;
+                    }
+                    else
+                    {
+                        _flakes[i] = RespawnFlake(0);
+                    }
                 }
             }
         }
@@ -1118,11 +1146,17 @@ namespace WinterTray.Engine
                 double surface = bank.Top - bank.HeightAt(f.X);
                 if (foot < surface || prevFoot > surface + 3 || foot > bank.Top + 16) continue;
 
-                // Csak akkor rakódhat le a hó az ablak tetejére, ha az ablak pereme feletti rész
-                // nem takart egy feljebb lévő (előtéri) ablak által!
+                // Csak akkor rakódhat le a hó az ablak tetejére, ha:
+                // 1. Nem takart egy feljebb lévő (előtéri) ablak által.
+                // 2. Az ablak pereme feletti rész ténylegesen a nyitott égbolt/asztal felé néz,
+                //    és NEM egy másik alkalmazás (akár háttérbeli, akár előtéri) belsejében fekszik!
+                //    (pl. ha a Fájlkezelő egy böngésző előtt van, a böngésző belsejében nem esik hó,
+                //    így a Fájlkezelő tetejére sem rakódhat le hó a fedett térben!)
                 if (IsCoveredByHigher(f.X, bank.Top - 4, bank.HWnd) ||
                     IsCoveredByHigher(f.X, surface - 2, bank.HWnd) ||
-                    IsCoveredByHigher(f.X, bank.Top + 2, bank.HWnd))
+                    IsCoveredByHigher(f.X, bank.Top + 2, bank.HWnd) ||
+                    IsInsideOtherWindow(f.X, bank.Top - 6, bank.HWnd) ||
+                    IsInsideOtherWindow(f.X, surface - 2, bank.HWnd))
                 {
                     continue;
                 }
