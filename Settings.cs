@@ -90,6 +90,9 @@ namespace WinterTray
             set => UseSeasonalWallpaper = value;
         }
 
+        // ---- Frissítések / Updates ----
+        public bool CheckForUpdatesOnStartup { get; set; } = true;
+
         public static Settings Load()
         {
             try

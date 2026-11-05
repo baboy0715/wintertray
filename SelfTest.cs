@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using WinterTray.Engine;
 using WinterTray.Native;
+using WinterTray.Services;
 using WinterTray.UI;
 
 namespace WinterTray
@@ -23,6 +24,27 @@ namespace WinterTray
             if (def.FlakeCount != 250) throw new Exception($"FlakeCount is {def.FlakeCount}, expected 250");
             if (Math.Abs(def.AccumulationSpeed - 0.40) > 0.001) throw new Exception($"AccumulationSpeed is {def.AccumulationSpeed}, expected 0.40");
             if (def.MeltRateSeconds != 0.0) throw new Exception($"MeltRateSeconds is {def.MeltRateSeconds}, expected 0.0");
+            if (!def.CheckForUpdatesOnStartup) throw new Exception("CheckForUpdatesOnStartup should default to true");
+
+            // UpdateManager verzió parszolás tesztek
+            if (!UpdateManager.TryParseVersion("v2.3.0", out var v1) || v1 != new Version(2, 3, 0))
+                throw new Exception($"Failed to parse v2.3.0: got {v1}");
+            if (!UpdateManager.TryParseVersion("v2.4", out var v2) || v2.Major != 2 || v2.Minor != 4)
+                throw new Exception($"Failed to parse v2.4: got {v2}");
+            if (!UpdateManager.TryParseVersion("1.0", out var v3) || v3.Major != 1 || v3.Minor != 0)
+                throw new Exception($"Failed to parse 1.0: got {v3}");
+            if (!UpdateManager.TryParseVersion("v3.0.0-rc1", out var v4) || v4 != new Version(3, 0, 0))
+                throw new Exception($"Failed to parse v3.0.0-rc1: got {v4}");
+
+            // Verzió összehasonlítás tesztek
+            if (!UpdateManager.IsVersionNewer(new Version(2, 2, 0), new Version(2, 3, 0)))
+                throw new Exception("2.3.0 should be newer than 2.2.0");
+            if (!UpdateManager.IsVersionNewer(new Version(2, 2, 0), new Version(2, 2, 1)))
+                throw new Exception("2.2.1 should be newer than 2.2.0");
+            if (UpdateManager.IsVersionNewer(new Version(2, 2, 0), new Version(2, 2, 0)))
+                throw new Exception("2.2.0 should not be newer than 2.2.0");
+            if (UpdateManager.IsVersionNewer(new Version(2, 2, 0), new Version(2, 1, 9)))
+                throw new Exception("2.1.9 should not be newer than 2.2.0");
 
             var world = new Engine.SnowWorld(def);
             world.Resize(1920, 1080);

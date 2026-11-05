@@ -1,10 +1,13 @@
 using System;
 using System.Drawing;
 using System.IO;
+using System.Net.NetworkInformation;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
 using WinterTray.Native;
+using WinterTray.Services;
 using WinterTray.UI;
 
 namespace WinterTray
@@ -18,7 +21,9 @@ namespace WinterTray
         private Settings? _settings;
         private SnowOverlayWindow? _overlay;
         private SettingsWindow? _settingsWindow;
+        private UpdateWindow? _updateWindow;
         private ToolStripMenuItem? _titleItem;
+        private ToolStripMenuItem? _updateMenuItem;
         private ToolStripMenuItem? _seasonMenuItem;
         private ToolStripMenuItem? _settingsMenuItem;
         private ToolStripMenuItem? _feedbackMenuItem;
@@ -27,6 +32,9 @@ namespace WinterTray
         private ToolStripMenuItem? _autoStartMenuItem;
         private ToolStripMenuItem? _exitMenuItem;
         private bool _selfTest;
+        private UpdateInfo? _latestAvailableUpdate;
+        private bool _hasCheckedForUpdatesThisSession;
+        private bool _networkMonitoringStarted;
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -91,6 +99,11 @@ namespace WinterTray
             _overlay.Show();
 
             SetupTrayIcon();
+
+            if (!_selfTest)
+            {
+                InitUpdateChecking();
+            }
         }
 
         private void SetupTrayIcon()
@@ -98,6 +111,11 @@ namespace WinterTray
             var menu = new ContextMenuStrip();
 
             _titleItem = new ToolStripMenuItem("❄ WinterTray") { Enabled = false };
+            _updateMenuItem = new ToolStripMenuItem("Új frissítés elérhető! ⚡", null, (s, e) => OpenUpdateWindow())
+            {
+                Visible = false,
+                Font = new Font(menu.Font, System.Drawing.FontStyle.Bold)
+            };
             _seasonMenuItem = new ToolStripMenuItem("Switch to Autumn mode 🍂", null, (s, e) => ToggleSeason());
             _settingsMenuItem = new ToolStripMenuItem("Settings...", null, (s, e) => OpenSettings());
             _settingsMenuItem.Font = new Font(_settingsMenuItem.Font, System.Drawing.FontStyle.Bold);
@@ -115,6 +133,7 @@ namespace WinterTray
             _exitMenuItem = new ToolStripMenuItem("Exit", null, (s, e) => ExitApp());
 
             menu.Items.Add(_titleItem);
+            menu.Items.Add(_updateMenuItem);
             menu.Items.Add(_seasonMenuItem);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(_settingsMenuItem);
@@ -145,6 +164,17 @@ namespace WinterTray
                 Visible = true
             };
             _trayIcon.DoubleClick += (s, e) => OpenSettings();
+            _trayIcon.BalloonTipClicked += (s, e) =>
+            {
+                if (_latestAvailableUpdate != null)
+                {
+                    OpenUpdateWindow(_latestAvailableUpdate);
+                }
+                else
+                {
+                    OpenSettings();
+                }
+            };
 
             UpdateTrayState();
         }
@@ -161,6 +191,21 @@ namespace WinterTray
                 _titleItem.Text = hu
                     ? (isAutumn ? "🍂 WinterTray (Ősz)" : "❄ WinterTray (Tél)")
                     : (isAutumn ? "🍂 WinterTray (Autumn)" : "❄ WinterTray (Winter)");
+
+            if (_updateMenuItem != null)
+            {
+                if (_latestAvailableUpdate != null && _latestAvailableUpdate.IsNewer)
+                {
+                    _updateMenuItem.Visible = true;
+                    _updateMenuItem.Text = hu
+                        ? $"❄ Új verzió: v{_latestAvailableUpdate.VersionString} ⚡"
+                        : $"❄ New version: v{_latestAvailableUpdate.VersionString} ⚡";
+                }
+                else
+                {
+                    _updateMenuItem.Visible = false;
+                }
+            }
 
             if (_seasonMenuItem != null)
                 _seasonMenuItem.Text = hu
@@ -260,6 +305,106 @@ namespace WinterTray
             _settings.StartWithWindows = !_settings.StartWithWindows;
             _settings.Save();
             _autoStartMenuItem.Checked = _settings.StartWithWindows;
+        }
+
+        private void InitUpdateChecking()
+        {
+            if (!_networkMonitoringStarted)
+            {
+                _networkMonitoringStarted = true;
+                try
+                {
+                    NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailabilityChanged;
+                }
+                catch { }
+            }
+
+            if (_settings?.CheckForUpdatesOnStartup ?? true)
+            {
+                // Indításkor 3.5 másodperc múlva a háttérben csendesen ellenőrzi a frissítéseket
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(3500);
+                    await CheckForUpdatesSilentlyAsync();
+                });
+            }
+        }
+
+        private void OnNetworkAvailabilityChanged(object? sender, NetworkAvailabilityEventArgs e)
+        {
+            // Amikor a számítógép csatlakozik az internethez, és ebben a munkamenetben még nem találtunk frissítést
+            if (e.IsAvailable && !_hasCheckedForUpdatesThisSession && (_settings?.CheckForUpdatesOnStartup ?? true))
+            {
+                _ = Task.Run(async () =>
+                {
+                    // 4 másodperc várakozás, hogy a DNS és hálózati kapcsolat felálljon
+                    await Task.Delay(4000);
+                    await CheckForUpdatesSilentlyAsync();
+                });
+            }
+        }
+
+        private async Task CheckForUpdatesSilentlyAsync()
+        {
+            try
+            {
+                var update = await UpdateManager.CheckForUpdateAsync(silent: true);
+                if (update != null)
+                {
+                    _hasCheckedForUpdatesThisSession = true;
+                    if (update.IsNewer)
+                    {
+                        _latestAvailableUpdate = update;
+                        Dispatcher.Invoke(() =>
+                        {
+                            ShowUpdateNotification(update);
+                        });
+                    }
+                }
+            }
+            catch
+            {
+                // Offline alkalmazásként szándékosan semmilyen hibaüzenetet nem jelenítünk meg
+            }
+        }
+
+        private void ShowUpdateNotification(UpdateInfo update)
+        {
+            if (_trayIcon == null) return;
+
+            bool hu = _settings?.IsHungarian ?? false;
+            string title = hu ? "❄ Új WinterTray frissítés!" : "❄ WinterTray Update Available!";
+            string text = hu
+                ? $"Elérhető a legújabb v{update.VersionString} verzió! Kattints ide a frissítés letöltéséhez."
+                : $"Version v{update.VersionString} is now available! Click here to download.";
+
+            _trayIcon.BalloonTipTitle = title;
+            _trayIcon.BalloonTipText = text;
+            _trayIcon.BalloonTipIcon = ToolTipIcon.Info;
+            _trayIcon.ShowBalloonTip(10000);
+
+            UpdateTrayState();
+        }
+
+        public void OpenUpdateWindow(UpdateInfo? update = null)
+        {
+            update ??= _latestAvailableUpdate;
+            if (update == null)
+            {
+                OpenSettings();
+                return;
+            }
+
+            if (_updateWindow == null || !_updateWindow.IsLoaded)
+            {
+                _updateWindow = new UpdateWindow(update, _settings?.IsHungarian ?? false);
+                _updateWindow.Closed += (s, e) => _updateWindow = null;
+                _updateWindow.Show();
+            }
+            else
+            {
+                _updateWindow.Activate();
+            }
         }
 
         private void ExitApp()

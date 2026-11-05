@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using WinterTray.Engine;
 using WinterTray.Native;
+using WinterTray.Services;
 
 namespace WinterTray.UI
 {
@@ -183,6 +184,22 @@ namespace WinterTray.UI
                 ? "Szezonális háttérkép beállítása (Tél: wallpaper.jpeg, Ősz: wallpaper-fall.jpeg)"
                 : "Set seasonal desktop wallpaper (Winter: wallpaper.jpeg, Autumn: wallpaper-fall.jpeg)";
 
+            // Frissítések szekció
+            TxtSecUpdates.Text = hu ? "FRISSÍTÉSEK" : "UPDATES";
+            ChkAutoUpdate.Content = hu
+                ? "Frissítések automatikus keresése indításkor"
+                : "Automatically check for updates on startup";
+            TxtUpdateCheckTitle.Text = hu ? "WinterTray verzió és frissítés" : "WinterTray version and updates";
+            BtnCheckUpdates.Content = hu ? "Keresés most" : "Check now";
+            if (string.IsNullOrWhiteSpace(TxtUpdateStatus.Text) ||
+                TxtUpdateStatus.Text.StartsWith("Current version") ||
+                TxtUpdateStatus.Text.StartsWith("Aktuális verzió"))
+            {
+                TxtUpdateStatus.Text = hu
+                    ? $"Aktuális verzió: v{UpdateManager.CurrentVersionDisplay}"
+                    : $"Current version: v{UpdateManager.CurrentVersionDisplay}";
+            }
+
             BtnReset.Content = hu ? "Alaphelyzet" : "Reset defaults";
             BtnSave.Content = hu ? "Mentés és bezárás" : "Save & Close";
 
@@ -287,6 +304,7 @@ namespace WinterTray.UI
             ChkPauseCovered.IsChecked = _settings.PauseWhenCovered;
             ChkAutoStart.IsChecked = _settings.StartWithWindows;
             ChkUseWallpaper.IsChecked = _settings.UseSeasonalWallpaper;
+            ChkAutoUpdate.IsChecked = _settings.CheckForUpdatesOnStartup;
         }
 
         private void UpdateSeasonUI(bool isAutumn)
@@ -434,6 +452,7 @@ namespace WinterTray.UI
             };
             _settings.PauseWhenCovered = ChkPauseCovered.IsChecked ?? true;
             _settings.StartWithWindows = ChkAutoStart.IsChecked ?? false;
+            _settings.CheckForUpdatesOnStartup = ChkAutoUpdate.IsChecked ?? true;
 
             bool wantWallpaper = ChkUseWallpaper.IsChecked ?? true;
             if (wantWallpaper != _settings.UseSeasonalWallpaper)
@@ -510,6 +529,7 @@ namespace WinterTray.UI
             _settings.AnimationQuality = def.AnimationQuality;
             _settings.PauseWhenCovered = def.PauseWhenCovered;
             _settings.UseSeasonalWallpaper = def.UseSeasonalWallpaper;
+            _settings.CheckForUpdatesOnStartup = def.CheckForUpdatesOnStartup;
 
             _isInitializing = true;
             LoadValues();
@@ -526,6 +546,49 @@ namespace WinterTray.UI
 
             _overlay.Reconfigure();
             _onSeasonChangedCallback?.Invoke();
+        }
+
+        private async void OnCheckUpdatesClicked(object sender, RoutedEventArgs e)
+        {
+            bool hu = _settings.IsHungarian;
+            BtnCheckUpdates.IsEnabled = false;
+            TxtUpdateStatus.Text = hu ? "Frissítések keresése folyamatban..." : "Checking for updates...";
+
+            try
+            {
+                var update = await UpdateManager.CheckForUpdateAsync(silent: false);
+                if (update != null && update.IsNewer)
+                {
+                    TxtUpdateStatus.Text = hu
+                        ? $"Új verzió érhető el: v{update.VersionString}!"
+                        : $"New version available: v{update.VersionString}!";
+
+                    var updateWin = new UpdateWindow(update, hu) { Owner = this };
+                    updateWin.ShowDialog();
+                }
+                else if (update != null)
+                {
+                    TxtUpdateStatus.Text = hu
+                        ? $"A legfrissebb verziót használod (v{UpdateManager.CurrentVersionDisplay}) ✔"
+                        : $"You are using the latest version (v{UpdateManager.CurrentVersionDisplay}) ✔";
+                }
+                else
+                {
+                    TxtUpdateStatus.Text = hu
+                        ? "Nem sikerült ellenőrizni (nincs kapcsolat vagy nincs újabb kiadás)."
+                        : "Could not check for updates (no connection or no newer release).";
+                }
+            }
+            catch
+            {
+                TxtUpdateStatus.Text = hu
+                    ? "Nem sikerült ellenőrizni (nincs internetkapcsolat)."
+                    : "Could not check for updates (no internet connection).";
+            }
+            finally
+            {
+                BtnCheckUpdates.IsEnabled = true;
+            }
         }
     }
 }

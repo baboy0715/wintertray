@@ -422,6 +422,23 @@
                 <Border Style="{StaticResource SettingCard}">
                     <CheckBox Name="ChkUseWallpaper" Content="Set seasonal desktop wallpaper (Winter: wallpaper.jpeg, Autumn: wallpaper-fall.jpeg)" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
                 </Border>
+
+                <!-- ==================== FRISSÍTÉSEK ==================== -->
+                <TextBlock Name="TxtSecUpdates" Text="UPDATES" Style="{StaticResource SectionHeader}" />
+
+                <Border Style="{StaticResource SettingCard}">
+                    <CheckBox Name="ChkAutoUpdate" Content="Automatically check for updates on startup" Checked="OnSettingChanged" Unchecked="OnSettingChanged" />
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <DockPanel>
+                        <Button Name="BtnCheckUpdates" DockPanel.Dock="Right" Content="Check now" Style="{StaticResource StandardButton}" Click="OnCheckUpdatesClicked" VerticalAlignment="Center" Margin="10,0,0,0" />
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Name="TxtUpdateCheckTitle" Text="WinterTray updates" FontWeight="Medium" Foreground="#E0E0E0" />
+                            <TextBlock Name="TxtUpdateStatus" Text="Current version: v2.2.0" FontSize="11" Foreground="#60CDFF" Margin="0,2,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
             </StackPanel>
         </ScrollViewer>
 
